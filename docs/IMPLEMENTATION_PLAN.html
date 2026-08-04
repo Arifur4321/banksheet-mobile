@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BankSheet Pro — Flutter Mobile App Implementation Plan</title>
+<style>
+  :root{
+    --ink:#111827; --ink2:#374151; --mut:#6b7280; --line:#e5e7eb; --bg:#ffffff;
+    --soft:#f9fafb; --accent:#1d4ed8; --accent-soft:#eff6ff;
+    --ok:#047857; --ok-bg:#ecfdf5; --warn:#b45309; --warn-bg:#fffbeb;
+    --bad:#b91c1c; --bad-bg:#fef2f2; --new:#6d28d9; --new-bg:#f5f3ff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 28px 100px}
+  header.hero{border-bottom:1px solid var(--line);padding:44px 0 30px;margin-bottom:32px}
+  header.hero .kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  header.hero h1{font-size:34px;line-height:1.2;margin:10px 0 8px;letter-spacing:-.02em}
+  header.hero p.sub{color:var(--mut);margin:0;font-size:15px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .meta span{font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:4px 11px;color:var(--ink2)}
+  h2{font-size:22px;margin:52px 0 6px;letter-spacing:-.01em;padding-top:14px;border-top:2px solid var(--ink);}
+  h2 .num{color:var(--mut);font-weight:600;margin-right:10px;font-size:16px}
+  h3{font-size:17px;margin:30px 0 8px}
+  h4{font-size:14px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  code{font-family:var(--mono);font-size:12.5px;background:var(--soft);border:1px solid var(--line);
+       border-radius:4px;padding:1px 5px;white-space:nowrap}
+  pre{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:16px 18px;overflow-x:auto;
+      font-family:var(--mono);font-size:12.5px;line-height:1.6;margin:12px 0}
+  pre code{background:none;border:none;padding:0;color:inherit;white-space:pre}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft);font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2)}
+  tbody tr:nth-child(even){background:#fcfcfd}
+  .box{border:1px solid var(--line);border-left-width:4px;border-radius:6px;padding:14px 18px;margin:16px 0;background:var(--soft)}
+  .box.ok{border-left-color:var(--ok);background:var(--ok-bg)}
+  .box.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+  .box.bad{border-left-color:var(--bad);background:var(--bad-bg)}
+  .box.info{border-left-color:var(--accent);background:var(--accent-soft)}
+  .box .t{font-weight:700;margin-bottom:4px;font-size:14px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;border-radius:4px;padding:2px 7px;white-space:nowrap}
+  .t-new{background:var(--new-bg);color:var(--new);border:1px solid #ddd6fe}
+  .t-mod{background:var(--warn-bg);color:var(--warn);border:1px solid #fde68a}
+  .t-keep{background:var(--ok-bg);color:var(--ok);border:1px solid #a7f3d0}
+  .t-risk{background:var(--bad-bg);color:var(--bad);border:1px solid #fecaca}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  .toc{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:18px 24px;margin:24px 0 8px}
+  .toc ol{columns:2;column-gap:36px;margin:0;padding-left:20px}
+  @media(max-width:760px){.toc ol{columns:1}}
+  .toc a{color:var(--ink2);text-decoration:none}
+  .toc a:hover{color:var(--accent);text-decoration:underline}
+  .ref{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
+  .phase{border:1px solid var(--line);border-radius:8px;padding:0;margin:16px 0;overflow:hidden}
+  .phase .ph{background:var(--soft);border-bottom:1px solid var(--line);padding:11px 18px;display:flex;
+             justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .phase .ph b{font-size:15px}
+  .phase .ph .est{font-size:12px;color:var(--mut);font-family:var(--mono)}
+  .phase .pb{padding:14px 18px}
+  .flow{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:20px;font-family:var(--mono);
+        font-size:12px;line-height:1.7;overflow-x:auto;margin:14px 0;white-space:pre}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px}
+  .noprint-hint{font-size:12px;color:var(--mut)}
+  .chk{list-style:none;padding-left:0}
+  .chk li{padding-left:26px;position:relative}
+  .chk li:before{content:"☐";position:absolute;left:4px;color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Senior engineering plan · analysis only, no code changed</div>
+  <h1>BankSheet Pro — Flutter Mobile App</h1>
+  <p class="sub">Implementation plan for iOS (App Store) and Android (Google Play), built on the existing Laravel backend and the existing MySQL database.</p>
+  <div class="meta">
+    <span>Prepared 3 August 2026</span>
+    <span>Backend: Laravel 13.8 · PHP 8.3 · MySQL <code style="border:none;background:none;padding:0">docuflow</code></span>
+    <span>Client: Flutter 3.44 stable</span>
+    <span>Scope: Core MVP first, parity later</span>
+    <span>Monetization: native IAP both stores</span>
+    <span>Target folder: <code style="border:none;background:none;padding:0">C:\Arifur-work\BankSheet\mobile-app-banksheet</code></span>
+  </div>
+</header>
+
+<div class="box info">
+  <div class="t">How this document was produced</div>
+  Every statement about your code below was read out of the actual files in
+  <code>C:\Arifur-work\BankSheet\docuflow</code> and <code>C:\Arifur-work\BankSheet\SEO-BankSheet</code>
+  and carries a <span class="ref">file:line</span> reference. Nothing was inferred from naming or convention.
+  <b>No file was modified, nothing was committed, nothing was pushed.</b>
+  Where I could not verify something, it is marked <span class="tag t-risk">NOT VERIFIED</span> rather than guessed.
+  I did <em>not</em> execute the PHP test suite (81 test files, 503 <code>test_</code> methods) — counts are from the filesystem, not from a run.
+  Every <span class="ref">file:line</span> reference in this document was then re-opened and checked a second time by an independent adversarial pass whose only job was to find claims that were wrong; the corrections it found are already applied.
+</div>
+
+<div class="toc">
+  <b style="display:block;margin-bottom:8px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)">Contents</b>
+  <ol>
+    <li><a href="#s1">Direct answers to your questions</a></li>
+    <li><a href="#s2">Verified baseline: what exists today</a></li>
+    <li><a href="#s3">Target architecture</a></li>
+    <li><a href="#s4">Can we use the same database?</a></li>
+    <li><a href="#s5">Backend changes — file by file</a></li>
+    <li><a href="#s6">The mobile API contract</a></li>
+    <li><a href="#s7">Authentication design</a></li>
+    <li><a href="#s8">In-app purchase design</a></li>
+    <li><a href="#s9">Flutter application architecture</a></li>
+    <li><a href="#s10">Screen map: web → mobile</a></li>
+    <li><a href="#s11">Phased delivery plan</a></li>
+    <li><a href="#s12">Google Play submission checklist</a></li>
+    <li><a href="#s13">App Store submission checklist</a></li>
+    <li><a href="#s14">Risks and blockers found in the current code</a></li>
+    <li><a href="#s15">Decisions still needed from you</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="s1"><span class="num">01</span>Direct answers to your questions</h2>
+
+<table>
+<thead><tr><th style="width:31%">Your question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>Can we use the same DB?</b></td>
+  <td><b>Yes — and you should.</b> One MySQL database <code>docuflow</code>, one set of <code>users</code> / <code>companies</code> / <code>documents</code> tables, one account that works on web and mobile.
+  <b>But the Flutter app must never open a MySQL connection.</b> It talks HTTPS to the same Laravel app, which owns the database. Full reasoning in <a href="#s4">§4</a>.</td>
+</tr>
+<tr>
+  <td><b>Does the Laravel side need changes?</b></td>
+  <td><b>Yes — additive, plus four behaviour-preserving refactors.</b> The web app today has exactly one auth guard (<code>web</code>, session driver) <span class="ref">config/auth.php:40-45</span> and no JSON representation of any screen's data. A mobile app cannot use cookies and CSRF tokens, so it needs a token guard and a new route file.
+  <b>No policy, no migration and no business rule changes.</b> Four existing controllers get logic <em>extracted</em> into services so both clients call one implementation — no behaviour change, and the existing 503 tests are the regression check. See <a href="#s5">§5</a>.</td>
+</tr>
+<tr>
+  <td><b>Can I ship to Play Store and App Store?</b></td>
+  <td><b>Yes.</b> Nothing in the product is disallowed. Two hard dates and one hard rule apply:
+  Play requires <b>target API 36 by 31 Aug 2026</b>; a personal Play account created after 13 Nov 2023 must run a <b>12-tester / 14-day closed test</b> before production access; Apple requires <b>in-app account deletion</b> (the web flow exists at <span class="ref">ProfileController.php:43-59</span>, though only <code>$user-&gt;delete()</code> is directly reusable — the other four statements are session-bound). Checklists in <a href="#s12">§12</a> and <a href="#s13">§13</a>.</td>
+</tr>
+<tr>
+  <td><b>IAP for iOS + Android, Stripe stays on Laravel?</b></td>
+  <td><b>Workable, and the design is in <a href="#s8">§8</a>.</b> The important part: store subscriptions and Stripe subscriptions must resolve into <em>one</em> entitlement. Your plan limits are already centralised in <code>PlanCatalog::applyToCompany()</code> <span class="ref">PlanCatalog.php:92-111</span>, so Apple/Google become a third writer into that same function. You must also block double-billing: never let a company hold a Stripe subscription and a store subscription at once.</td>
+</tr>
+<tr>
+  <td><b>Feature parity with the website?</b></td>
+  <td><b>Realistic in three releases, not one.</b> Most of the 19 sidebar destinations are forms and tables and port cleanly. Four are canvas-heavy (Konva + pdf-lib + pdf.js + interact.js) and genuinely expensive to rebuild natively — the Advanced PDF Editor, Barcode Studio, signature-field placement and on-device signing — plus two TinyMCE screens with no good mobile equivalent. Scope table in <a href="#s10">§10</a>.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="box warn">
+  <div class="t">The single biggest thing this plan is about</div>
+  BankSheet Pro is a <b>server-rendered Blade application</b>. There <em>is</em> some first-party JSON — eight endpoints that your own JavaScript calls with <code>fetch()</code>
+  (PDF-editor <code>save</code>/<code>assets</code>/<code>export</code> <span class="ref">routes/web.php:508-511</span>, barcode-studio <code>save</code>/<code>generate</code> <span class="ref">:522-523</span>,
+  the guest barcode equivalents, extraction-profile <code>preview</code> <span class="ref">:489</span>, PDF-tool <code>status</code> <span class="ref">:553</span>, and <code>api-docs/openapi.json</code>)
+  — but every one of them is a narrow action helper for a single canvas screen, not a data API.
+  <b>No screen's data is available as JSON: not documents, not transactions, not the dashboard, not billing, not the team.</b> Every one of those is HTML rendered by PHP.
+  So the mobile project is not "80% Flutter, 20% backend". It is roughly <b>45% new Laravel API work, 55% Flutter</b>. Plan and staff accordingly.
+</div>
+
+<!-- ============================================================= -->
+<h2 id="s2"><span class="num">02</span>Verified baseline: what exists today</h2>
+
+<h3>2.1 BankSheet Pro (<code>docuflow</code>) — the product the app must mirror</h3>
+
+<table>
+<thead><tr><th style="width:23%">Dimension</th><th>Verified fact</th><th style="width:26%">Source</th></tr></thead>
+<tbody>
+<tr><td>Framework</td><td>Laravel <code>^13.8</code>, PHP <code>^8.3</code>, Blade + Alpine.js + Vite/Tailwind. No SPA.</td><td class="ref">composer.json:9,12</td></tr>
+<tr><td>Database</td><td>MySQL, database name <code>docuflow</code>. 54 migrations. Note <code>config/database.php:20</code> defaults to <code>sqlite</code> — <code>mysql</code> comes only from the env file, so a missing <code>DB_CONNECTION</code> in production silently falls back to SQLite.</td><td class="ref">.env / .env.example:30-33</td></tr>
+<tr><td>Auth</td><td><b>One guard only: <code>web</code>, session driver.</b> No Sanctum, no Passport — verified in composer.json, composer.lock and by the absence of <code>config/sanctum.php</code>.</td><td class="ref">config/auth.php:41-44</td></tr>
+<tr><td>Social auth</td><td>Google via <code>laravel/socialite</code>. Links an existing password account to a Google identity by email with no confirmation step.</td><td class="ref">Auth/GoogleAuthController.php:51-63</td></tr>
+<tr><td>Email verification</td><td><b>Implemented but not enforced.</b> <code>User</code> does not implement <code>MustVerifyEmail</code> and the <code>verified</code> middleware is on zero routes.</td><td class="ref">app/Models/User.php:5,19</td></tr>
+<tr><td>Tenancy</td><td><code>users.company_id</code> is the only tenant key. Enforced by the <code>ScopesToCompany</code> trait (<code>visibleTo()</code>) on 18 models plus 12 policies. No global scope, no tenancy middleware.</td><td class="ref">Models/Concerns/ScopesToCompany.php:29-44</td></tr>
+<tr><td>Roles</td><td>Class constants, not an enum: <code>admin</code> (platform), <code>owner</code>, <code>company_admin</code>, <code>member</code> (+ 3 legacy values collapsed by migration).</td><td class="ref">app/Models/User.php:37-52</td></tr>
+<tr><td>Storage</td><td><b>Local disk only.</b> Documents at <code>storage/app/private/documents/company-{id}/…</code>. An <code>s3</code> disk is configured but nothing in the document pipeline uses it.</td><td class="ref">DocumentController.php:82 · config/filesystems.php:31-63</td></tr>
+<tr><td>Queue</td><td><code>database</code> driver, single <code>default</code> queue. Neither pipeline job sets a queue name. Job timeout 900 s, <code>retry_after</code> 1200 s.</td><td class="ref">config/queue.php:16,38-48 · ProcessDocumentJob.php:41-50</td></tr>
+<tr><td>Extraction</td><td>Python engine (PyMuPDF + pdfplumber + Camelot + OCRmyPDF, 869-line script) with automatic fallback to a pure-PHP parser. Selected by <code>BANK_STATEMENT_ENGINE=auto</code>.</td><td class="ref">BankStatementEngineManager.php:27-54 · scripts/bank_statement_extract.py</td></tr>
+<tr><td>OCR</td><td><code>OCR_DRIVER=auto</code> → Azure Document Intelligence if configured, else Tesseract (<code>NullOcrService</code> is only reachable via an unrecognised explicit driver). Skipped entirely when native text ≥ 80 chars.</td><td class="ref">AppServiceProvider.php:54-68 · OcrPipeline.php:21</td></tr>
+<tr><td>Billing</td><td>Laravel Cashier + Stripe Checkout. Four plans: Free €0 / Starter €20 / Professional €79 / Enterprise (custom). <b>Purely subscription — no credits, no pay-as-you-go.</b></td><td class="ref">config/plans.php:25-129 · BillingController.php:99-113</td></tr>
+<tr><td>Quotas</td><td>Monthly counters on <code>companies</code> (documents, pages, conversions, e-signs, web scans, barcodes, API docs), reset at <code>startOfMonth()</code> <span class="ref">:351,367-375</span>. Breach → <code>DomainException</code> <span class="ref">:29-31</span> → caught in the controller and turned into a flash message <span class="ref">DocumentController.php:77</span>.</td><td class="ref">PlanEnforcementService.php</td></tr>
+<tr><td>Public API</td><td><code>/api/v1</code> — 9 endpoints, <b>API-key authenticated (machine-to-machine)</b>. The key resolves the tenant, so it is not usable as a per-user mobile session.</td><td class="ref">routes/api.php:24-49 · AuthenticateApiKey.php:22-90</td></tr>
+<tr><td>Real-time</td><td><b>None.</b> No WebSocket, no Echo, no Pusher, no SSE. Three polling mechanisms exist (PDF-tool status every 3 s, web-extraction full-page reload every 5 s, the API-docs demo poller); documents have <em>no</em> status endpoint at all.</td><td class="ref">tools/pdf/tool.blade.php:221-243</td></tr>
+<tr><td>i18n</td><td><b>13 locales, 1881 keys each</b>, key-aligned. Switching persists to <code>users.locale</code> + a 1-year cookie.</td><td class="ref">config/locales.php:21-35 · lang/*.json</td></tr>
+<tr><td>CORS</td><td><b>Active and fully open on <code>api/*</code>.</b> <code>config/cors.php</code> is not published, so Laravel's base config applies: <code>paths: ['api/*']</code>, <code>allowed_origins: ['*']</code>. <code>HandleCors</code> is in the framework's default global stack and <code>bootstrap/app.php</code> never removes it. Your <code>/api/v1</code> already answers <code>Access-Control-Allow-Origin: *</code>, and <code>api/mobile/v1</code> would inherit that. Harmless for a native app; see risk #15.</td><td class="ref">bootstrap/app.php:22-41 (no <code>->use()</code>/<code>->remove()</code>)</td></tr>
+<tr><td>Tests</td><td>81 test files, 503 <code>test_</code> methods. <span class="tag t-risk">NOT RUN</span> — counted on disk only.</td><td class="ref">tests/</td></tr>
+</tbody>
+</table>
+
+<h3>2.2 SEO-BankSheet — a separate product, but a gift for this project</h3>
+
+<p><code>SEO-BankSheet</code> is a different application with its own database (<code>seo_banksheet</code>), its own <code>APP_KEY</code>, its own domain and zero runtime coupling to <code>docuflow</code> — confirmed by grep in both directions.
+It matters here for one reason: <b>it already contains a complete, tested, dependency-free token-authentication server written in your own house style.</b></p>
+
+<table>
+<thead><tr><th style="width:32%">Component</th><th>What it does</th><th style="width:26%">Source</th></tr></thead>
+<tbody>
+<tr><td><code>Services/OAuth/TokenService.php</code></td><td>Opaque tokens (<code>bsa_at_</code> / <code>bsa_rt_</code> + 64 random chars), stored only as SHA-256 hashes; 30-min access, 30-day refresh, <b>refresh rotation with reuse detection that revokes the whole chain after the commit</b>. <code>last_used_at</code> throttled to once a minute.</td><td class="ref">TokenService.php:26-28,93-143,157,214-228</td></tr>
+<tr><td><code>Middleware/AuthenticateOAuthToken.php</code></td><td>Bearer parsing (<span class="ref">:73-84</span>), per-route scopes with 403 <code>insufficient_scope</code> vs 401 (<span class="ref">:40-50,86-90</span>), and — critically — sets <b>both</b> <code>setUserResolver()</code> and <code>auth()->setUser()</code> (<span class="ref">:66-67</span>).</td><td class="ref">AuthenticateOAuthToken.php</td></tr>
+<tr><td>Test coverage</td><td>31 tests on the flow alone, including "no plaintext token is ever written to the database" and "a session cookie does not authenticate the API".</td><td class="ref">Feature/OAuth/AuthorizationFlowTest.php:457,504</td></tr>
+<tr><td>Why hand-rolled</td><td>Packagist has been unreachable from your build environment across sessions, so no new Composer package could be installed and verified.</td><td class="ref">HANDOVER.md:179-183,259-269</td></tr>
+</tbody>
+</table>
+
+<div class="box ok">
+  <div class="t">Decision that falls straight out of this</div>
+  Do <b>not</b> try to <code>composer require laravel/sanctum</code> into <code>docuflow</code>. Your own handover notes record that Packagist is unreachable from the build box, and a half-installed auth package is the worst possible failure mode.
+  <b>Port the proven <code>TokenService</code> pattern from SEO-BankSheet into <code>docuflow</code>, simplified for a first-party client</b> (direct credentials, no authorization-code round trip). Zero new dependencies, and the security properties are already written and tested. Detail in <a href="#s7">§7</a>.
+</div>
+
+<!-- ============================================================= -->
+<h2 id="s3"><span class="num">03</span>Target architecture</h2>
+
+<div class="flow">┌──────────────────────────┐        ┌──────────────────────────┐
+│   Flutter app (iOS)      │        │  Flutter app (Android)   │
+│   StoreKit 2             │        │  Play Billing 9          │
+└───────────┬──────────────┘        └──────────────┬───────────┘
+            │                                      │
+            │       HTTPS · Bearer bsm_at_…        │
+            └──────────────┬───────────────────────┘
+                           ▼
+      ┌────────────────────────────────────────────────────┐
+      │  banksheet.pro  —  the SAME Laravel application     │
+      │                                                    │
+      │  routes/web.php     → Blade  (unchanged)           │
+      │  routes/api.php     → /api/v1 API-key (unchanged)  │
+      │  routes/mobile.php  → /api/mobile/v1   ★ NEW       │
+      │                                                    │
+      │  ┌──────────────────────────────────────────────┐  │
+      │  │  SHARED, UNCHANGED BUSINESS LOGIC            │  │
+      │  │  UserOnboardingService · PlanEnforcement     │  │
+      │  │  PlanCatalog · BankStatementExtractionService│  │
+      │  │  DocumentExportService · InvitationService   │  │
+      │  │  12 Policies · ScopesToCompany trait         │  │
+      │  └──────────────────────────────────────────────┘  │
+      └───────────────┬─────────────────┬──────────────────┘
+                      │                 │
+        ┌─────────────▼──────┐   ┌──────▼───────────────────┐
+        │  MySQL `docuflow`  │   │ queue: jobs table        │
+        │  ONE database      │   │ storage: local disk      │
+        │  users, companies, │   │ python extraction engine │
+        │  documents, …      │   └──────────────────────────┘
+        └────────────────────┘
+                      ▲
+        ┌─────────────┴───────────────────────────────────┐
+        │  Webhooks in:  Stripe · Apple ASN v2 ★  Google  │
+        │                RTDN via Pub/Sub ★               │
+        └─────────────────────────────────────────────────┘
+                                            ★ = new for mobile</div>
+
+<h4>Non-negotiable principles</h4>
+<ol>
+<li><b>One source of truth for business rules.</b> Every mobile endpoint delegates to the same service class the Blade controller uses. If a quota rule changes, it changes in <code>PlanEnforcementService</code> once and both clients get it.</li>
+<li><b>Mobile controllers are thin translators.</b> They validate, call a service, and shape JSON. No <code>if</code> that exists nowhere else.</li>
+<li><b>Additive only.</b> No existing route, controller, migration or view is edited. The 503 existing test methods must stay green untouched.</li>
+<li><b>The device is never trusted.</b> Not for quotas, not for plan state, not for purchase receipts, not for tenant scoping.</li>
+<li><b>The API is versioned and the client is version-gated</b> from day one, so you can force-upgrade old installs. SEO-BankSheet already has this pattern (<code>X-BankSheet-SEO-Client</code> → 426) — <em>and it also has the trap</em> where the config default is <code>1.0.0</code> (<span class="ref">config/seo.php:165</span>) while the shipped extension is <code>0.2.0</code>, so every request that <em>does</em> send the header is 426'd. Copy the mechanism, default the version to <code>0.0.0</code>.</li>
+</ol>
+
+<!-- ============================================================= -->
+<h2 id="s4"><span class="num">04</span>Can we use the same database?</h2>
+
+<p><b>Yes. One database, one account, one truth.</b> A user who registers on the phone can log in on <code>banksheet.pro</code> the same minute, sees the same documents, the same team, the same plan and the same monthly counters — because there is literally one <code>users</code> row and one <code>companies</code> row.</p>
+
+<p>The distinction that matters is <em>how</em> the app reaches it.</p>
+
+<table>
+<thead><tr><th style="width:34%">Approach</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>Flutter → MySQL directly</b><br><span class="ref">(a Dart mysql client on the device)</span></td>
+  <td><span class="tag t-risk">NEVER DO THIS</span> Six independent reasons, each fatal on its own:
+    <ol style="margin-top:6px">
+      <li>The DB username and password would ship inside the APK/IPA. Both are trivially unpackable. That is your production database credential handed to anyone who downloads the app.</li>
+      <li>MySQL port 3306 would have to be open to the public internet.</li>
+      <li>All 12 policies and the <code>visibleTo()</code> tenant scope live in PHP. A raw SQL client bypasses every one of them — any user could read every company's bank statements.</li>
+      <li>Quota enforcement, Stripe reconciliation and the extraction queue are all PHP. Rows inserted from a phone would never be processed.</li>
+      <li>You could never change the schema again without breaking installed apps you cannot force-update.</li>
+      <li>It would fail App Store review under Guideline 5.1.1 and Play's data-safety rules.</li>
+    </ol>
+  </td>
+</tr>
+<tr>
+  <td><b>Flutter → Laravel HTTPS API → MySQL</b></td>
+  <td><span class="tag t-keep">THE PLAN</span> The app holds a per-user, revocable, short-lived token. Laravel resolves the user, applies the same policies and tenant scope, enforces the same quotas, and returns JSON. The database credential never leaves your VPS. This is what "using the same DB" means in practice, and it is what every SaaS mobile app does.</td>
+</tr>
+<tr>
+  <td><b>A second database for mobile</b></td>
+  <td><span class="tag t-risk">DO NOT</span> You would immediately own a two-way sync problem across users, companies, documents, quotas and subscriptions. There is no upside.</td>
+</tr>
+</tbody>
+</table>
+
+<h4>New tables the mobile app adds to <code>docuflow</code> (5 migrations, all additive)</h4>
+<table>
+<thead><tr><th style="width:26%">Table</th><th>Purpose</th><th style="width:34%">Key columns</th></tr></thead>
+<tbody>
+<tr><td><code>mobile_access_tokens</code></td><td>Short-lived bearer tokens</td><td><code>user_id</code>, <code>token_hash</code> (char 64, unique), <code>device_name</code>, <code>device_id</code>, <code>platform</code>, <code>app_version</code>, <code>expires_at</code>, <code>revoked_at</code>, <code>last_used_at</code></td></tr>
+<tr><td><code>mobile_refresh_tokens</code></td><td>Rotation with reuse detection</td><td><code>mobile_access_token_id</code>, <code>token_hash</code> (unique), <code>expires_at</code>, <code>revoked_at</code>, <code>rotated_to_id</code> (self-FK)</td></tr>
+<tr><td><code>mobile_devices</code></td><td>Push targets</td><td><code>user_id</code>, <code>platform</code>, <code>push_token</code>, <code>locale</code>, <code>last_seen_at</code>; unique <code>(platform, push_token)</code></td></tr>
+<tr><td><code>store_subscriptions</code></td><td>Apple/Google subscription state</td><td><code>company_id</code>, <code>user_id</code>, <code>store</code> (<code>apple</code>|<code>google</code>), <code>product_id</code>, <code>plan_key</code>, <code>original_transaction_id</code>, <code>status</code>, <code>expires_at</code>, <code>auto_renewing</code>, <code>environment</code>, <code>payload_json</code>; unique <code>(store, original_transaction_id)</code></td></tr>
+<tr><td><code>store_notifications</code></td><td>Raw ASN / RTDN audit log + replay protection</td><td><code>store</code>, <code>notification_uuid</code> (unique), <code>type</code>, <code>subtype</code>, <code>payload_json</code>, <code>processed_at</code></td></tr>
+</tbody>
+</table>
+
+<p>Nothing on <code>users</code> or <code>companies</code> changes. Not one column.</p>
+
+<!-- ============================================================= -->
+<h2 id="s5"><span class="num">05</span>Backend changes — file by file</h2>
+
+<p>Presented as before → after, so you can review each one in isolation. <span class="tag t-new">NEW</span> means the file does not exist today; <span class="tag t-mod">MODIFIED</span> means an existing file gains lines but loses none; <span class="tag t-keep">UNCHANGED</span> is listed where it matters that a file is <em>not</em> touched.</p>
+
+<h3>5.1 Files modified — six, all additive or pure refactors</h3>
+
+<table>
+<thead><tr><th style="width:22%">File</th><th style="width:38%">Before</th><th>After</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>bootstrap/app.php</code><br><span class="tag t-mod">MODIFIED</span></td>
+  <td><code>withRouting(web:, api:, commands:, health:)</code> and 4 middleware aliases: <code>admin</code>, <code>api.key</code>, <code>api.throttle</code>, <code>api.idempotency</code>.<br><span class="ref">bootstrap/app.php:14-41</span></td>
+  <td>Add a <code>then:</code> closure registering <code>routes/mobile.php</code> under prefix <code>api/mobile/v1</code> with no session middleware; add aliases <code>auth.mobile</code>, <code>mobile.version</code>.<br><b>The four existing aliases and the existing routing are untouched.</b><br><i>Note: the JSON exception renderer needs no change — its predicate is <code>$request->is('api/*')</code> and Laravel's wildcard crosses slashes, so <code>api/mobile/v1/*</code> is already covered.</i></td>
+</tr>
+<tr>
+  <td><code>routes/console.php</code><br><span class="tag t-mod">MODIFIED</span></td>
+  <td>6 scheduled prune/billing commands.<br><span class="ref">routes/console.php:11-50</span></td>
+  <td>Append two: <code>banksheet:prune-mobile-tokens</code> (daily 03:15) and <code>banksheet:sync-store-subscriptions</code> (hourly, safety net for missed ASN/RTDN — mirrors what <code>banksheet:downgrade-expired</code> already does for Stripe).</td>
+</tr>
+<tr>
+  <td><code>DashboardController.php</code><br><span class="tag t-mod">REFACTOR</span></td>
+  <td>13 metrics computed inline in <code>__invoke</code>.<br><span class="ref">DashboardController.php:15-56</span></td>
+  <td>Move the query block verbatim into a new <code>DashboardMetricsService</code>; the controller calls it and passes the same array to the same view. <b>Behaviour identical, existing test still passes unchanged.</b></td>
+</tr>
+<tr>
+  <td><code>ProfileController.php</code> + <code>LocaleController.php</code><br><span class="tag t-mod">REFACTOR</span></td>
+  <td>Profile update / password / delete and locale switching implemented inline, with session calls interleaved.<br><span class="ref">ProfileController.php:43-59</span></td>
+  <td>Extract the non-session parts (<code>$user->delete()</code>, the locale persist) into a small <code>AccountService</code> both controllers call. The session-specific lines (<code>Auth::logout()</code>, <code>session()->invalidate()</code>, <code>Redirect::to('/')</code>) stay in the web controller — the mobile equivalent revokes tokens instead.</td>
+</tr>
+<tr>
+  <td><code>DocumentController.php</code><br><span class="tag t-mod">VISIBILITY</span></td>
+  <td><code>private function queueDocument()</code><br><span class="ref">DocumentController.php:226-246</span></td>
+  <td>Either promote to a <code>DocumentQueueService</code> (preferred) or change <code>private</code> → <code>protected</code> and have the mobile controller extend it. No logic change either way.</td>
+</tr>
+<tr>
+  <td><code>BillingController.php</code><br><span class="tag t-mod">GUARD</span></td>
+  <td><code>subscribe()</code> assumes Stripe is the only subscription source.<br><span class="ref">BillingController.php:55-117</span></td>
+  <td>Add one early return: refuse web checkout when an active Apple/Google subscription exists, pointing the user to store subscription management. See §8.2 — without this, double billing is possible.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="box ok">
+  <div class="t">Explicitly not touched</div>
+  <span class="tag t-keep">UNCHANGED</span> <code>routes/web.php</code> · <code>routes/api.php</code> · <code>routes/auth.php</code> · every existing migration · <code>config/auth.php</code> · every policy · every extraction, conversion, e-sign and billing service · all 81 test files.
+  The four refactors above move code without changing behaviour, so the existing suite is the regression test for them: <b>run <code>php artisan test</code> before and after each one and require an identical result.</b>
+</div>
+
+<h3>5.2 New files — auth layer</h3>
+<table>
+<thead><tr><th style="width:34%">File</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td><code>routes/mobile.php</code></td><td>~40 route definitions, grouped by <code>auth.mobile</code> and throttle bucket.</td></tr>
+<tr><td><code>app/Services/Mobile/MobileTokenService.php</code></td><td>Port of <span class="ref">SEO-BankSheet TokenService.php:26-228</span>, with its <code>issueForCode()</code> replaced by <code>issueForUser()</code> (no authorization-code step for a first-party client). Keeps <code>refresh()</code> with rotation + reuse detection + chain revocation, <code>resolveAccessToken()</code>, <code>revoke()</code>, <code>revokeAllForUser()</code>. Prefixes <code>bsm_at_</code> / <code>bsm_rt_</code>. SHA-256 at rest, plaintext never stored.</td></tr>
+<tr><td><code>app/Http/Middleware/AuthenticateMobileToken.php</code></td><td>Port of <span class="ref">AuthenticateOAuthToken.php:58-90</span>. <b>Must set both <code>setUserResolver()</code> and <code>auth()->setUser()</code></b> — otherwise the controller sees the user and the policy does not, and you get a 403 that takes a day to debug. That bug is already documented in your own handover notes.</td></tr>
+<tr><td><code>app/Http/Middleware/EnforceMobileClientVersion.php</code></td><td>Reads <code>X-BankSheet-App</code>; below <code>config('mobile.min_version')</code> → 426 <code>client_outdated</code>. <b>Default the config value to <code>0.0.0</code>, not <code>1.0.0</code></b> — SEO-BankSheet's default of <code>1.0.0</code> against a 0.2.0 client 426s every request including <code>/health</code>.</td></tr>
+<tr><td><code>app/Models/MobileAccessToken.php</code>, <code>MobileRefreshToken.php</code>, <code>MobileDevice.php</code></td><td>Thin Eloquent models with <code>isUsable()</code> helpers.</td></tr>
+<tr><td><code>app/Http/Controllers/Mobile/V1/AuthController.php</code></td><td><code>register</code> → delegates to the existing <code>UserOnboardingService::createCompanyOwner()</code> <span class="ref">UserOnboardingService.php:19-45</span>, which already creates the company, applies the default plan and fires <code>Registered</code>; <code>login</code> → same <code>RateLimiter</code> key strategy as <span class="ref">LoginRequest.php:63,84</span> (5 attempts, keyed <code>lower(email)|ip</code>); <code>refresh</code>, <code>logout</code>, <code>forgotPassword</code> (reuses the existing password broker).</td></tr>
+<tr><td><code>config/mobile.php</code></td><td>TTLs, min client version, rate-limit buckets, IAP product→plan map, upload caps.</td></tr>
+<tr><td>5 migrations</td><td>The tables in <a href="#s4">§4</a>.</td></tr>
+</tbody>
+</table>
+
+<h3>5.3 New files — resource layer</h3>
+<p>One <code>JsonResource</code> per entity, so the wire shape is defined in exactly one place and can be regression-tested:
+<code>UserResource</code>, <code>CompanyResource</code>, <code>PlanResource</code>, <code>UsageResource</code>, <code>DocumentResource</code>, <code>DocumentDetailResource</code>, <code>TransactionResource</code>, <code>StatementSummaryResource</code>, <code>ExtractionProfileResource</code>, <code>ExportArchiveResource</code>, <code>SignatureRequestResource</code>, <code>TeamMemberResource</code>, <code>InvitationResource</code>, <code>DashboardResource</code>.</p>
+
+<div class="box info">
+  <div class="t">Reuse the response contract you already got right</div>
+  <code>StatementResponseBuilder</code> <span class="ref">StatementResponseBuilder.php:13-19</span> states three rules the mobile client will thank you for: an unreadable field is <code>{"value": null}</code> and never an absent key; confidence is a 4-value enum (<code>certain|high|medium|low</code>) and never a float; <code>warnings</code> is always present.
+  <b>Apply the same three rules to every mobile resource</b> — but note they are a docblock convention there, not a tested invariant. In the mobile resources, <b>pin them with a contract test</b> so they cannot silently drift.
+  A Dart <code>freezed</code> model against a schema that never drops keys is a model you write once.
+</div>
+
+<h3>5.4 New files — feature controllers</h3>
+<table>
+<thead><tr><th style="width:30%">Controller</th><th>Delegates to (existing, unchanged)</th></tr></thead>
+<tbody>
+<tr><td><code>Mobile/V1/AccountController</code></td><td>The new <code>AccountService</code> extracted from <code>ProfileController</code> + <code>LocaleController</code> (see §5.1). <b>Keep the <code>current_password</code> requirement on account deletion</b> — it is in the web flow <span class="ref">ProfileController.php:45-47</span> and reviewers like to see it.</td></tr>
+<tr><td><code>Mobile/V1/DashboardController</code></td><td>The new <code>DashboardMetricsService</code> (13 metrics) <span class="ref">DashboardController.php:25-37</span>.</td></tr>
+<tr><td><code>Mobile/V1/DocumentController</code></td><td><code>PlanEnforcementService::assertCanUploadDocument()</code>, the extracted <code>DocumentQueueService</code>, <code>DocumentExportService</code>. Same validation rules: <code>mimes:pdf,xml,p7m,jpg,jpeg,png,zip</code>, <code>max:20480</code> <span class="ref">DocumentController.php:63-70</span>.</td></tr>
+<tr><td><code>Mobile/V1/TransactionController</code></td><td><code>ExtractedTransactionController::update</code> rules <span class="ref">ExtractedTransactionController.php:37-102</span>. Note the API already supports full field editing while the web UI only submits hidden Approve/Reject values <span class="ref">transactions/index.blade.php:84-104</span> — <b>the mobile app can be better than the website here at no extra backend cost</b>.</td></tr>
+<tr><td><code>Mobile/V1/ExtractionProfileController</code></td><td><code>ExtractionProfileService</code>. Read + toggle in v1; the builder is v2.</td></tr>
+<tr><td><code>Mobile/V1/ExportController</code></td><td><code>ExportArchiveController</code> logic + streamed download.</td></tr>
+<tr><td><code>Mobile/V1/SignatureController</code></td><td><code>InternalSignatureService</code>, <code>SequentialSignatureService</code>.</td></tr>
+<tr><td><code>Mobile/V1/TeamController</code></td><td><code>Team\InvitationService</code>, <code>PlanEnforcementService::reserveEmployeeSeat()</code>.</td></tr>
+<tr><td><code>Mobile/V1/BillingController</code></td><td><code>PlanCatalog</code>, <code>ApiQuotaService::snapshot()</code> pattern, plus the new <code>StoreSubscriptionService</code>.</td></tr>
+<tr><td><code>Mobile/V1/DeviceController</code></td><td>Push token registration.</td></tr>
+<tr><td><code>Webhooks/AppleNotificationController</code><br><code>Webhooks/GoogleNotificationController</code></td><td>New. Register them inside <code>routes/mobile.php</code> (which carries no session middleware, so CSRF never runs and no <code>validateCsrfTokens(except:)</code> entry is needed — unlike <code>stripe/webhook</code>, which lives in <code>routes/web.php</code>). Both must be signature-verified and deduplicated on notification id.</td></tr>
+</tbody>
+</table>
+
+<h3>5.5 New files — IAP layer</h3>
+<table>
+<thead><tr><th style="width:34%">File</th><th>Responsibility</th></tr></thead>
+<tbody>
+<tr><td><code>app/Services/Billing/StoreSubscriptionService.php</code></td><td>Verify, persist, and hand the resolved plan key to the <b>existing</b> <code>PlanCatalog::applyToCompany()</code>.</td></tr>
+<tr><td><code>app/Services/Billing/AppleReceiptVerifier.php</code></td><td>Verify the JWS <code>x5c</code> chain to Apple's root CA, check bundle id and environment, then call the App Store Server API for authoritative status. <b>Do not use the deprecated <code>verifyReceipt</code> endpoint.</b></td></tr>
+<tr><td><code>app/Services/Billing/GooglePlayVerifier.php</code></td><td>Service-account JWT → Play Developer API <code>purchases.subscriptionsv2.get</code>, then <code>acknowledge()</code>.</td></tr>
+<tr><td><code>app/Services/Billing/EntitlementResolver.php</code></td><td>The single precedence rule (Stripe → store → free) and the double-billing guard.</td></tr>
+<tr><td><code>app/Console/Commands/SyncStoreSubscriptions.php</code></td><td>Hourly reconciliation against both stores, mirroring the safety net <code>DowngradeExpiredSubscriptions</code> already provides for Stripe.</td></tr>
+</tbody>
+</table>
+
+<h3>5.6 New tests to write alongside</h3>
+<ul>
+<li><b>Auth</b> — plaintext token never in DB; expired/revoked token → 401; refresh rotation invalidates the old pair; <b>reusing a rotated refresh revokes the entire chain</b>; a session cookie does <em>not</em> authenticate the mobile API; login throttle after 5 attempts.</li>
+<li><b>Tenancy</b> — user of company A gets 404 (not 403) for a document of company B, through every mobile endpoint. Non-negotiable.</li>
+<li><b>Quotas</b> — the same <code>DomainException</code> surfaces as HTTP 402 with a usage snapshot, matching the shape <code>ApiErrors</code> already uses <span class="ref">ApiErrors.php:73-92</span>.</li>
+<li><b>IAP</b> — forged Apple JWS rejected; replayed <code>notification_uuid</code> is a no-op; an unacknowledged Google purchase is acknowledged; a company with an active Stripe sub cannot start an IAP sub and vice versa.</li>
+<li><b>Contract</b> — every resource emits every documented key even when the underlying value is null.</li>
+<li><b>Refactor safety</b> — the four extractions in §5.1 must leave <code>php artisan test</code> byte-identical. Record the pass/assert counts before you start.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="s6"><span class="num">06</span>The mobile API contract</h2>
+
+<p>Base URL <code>https://banksheet.pro/api/mobile/v1</code>. Every request carries <code>Accept: application/json</code> and <code>X-BankSheet-App: &lt;version&gt;</code>. Every authenticated request carries <code>Authorization: Bearer bsm_at_…</code>.</p>
+
+<h4>Error envelope — identical in shape to your existing public API, so one Dart parser covers both</h4>
+<pre><code>{
+  "error": {
+    "code": "quota_exceeded",
+    "status": 402,
+    "title": "Monthly quota reached",
+    "detail": "Your plan includes 200 documents per month and 200 are used.",
+    "doc_url": "https://banksheet.pro/api-docs#error-quota_exceeded"
+  },
+  "usage": { "...": "included on 402 only" }
+}</code></pre>
+
+<h4>Endpoint table — v1 (MVP)</h4>
+<table>
+<thead><tr><th style="width:7%">Method</th><th style="width:30%">Path</th><th style="width:33%">Purpose</th><th>Wraps</th></tr></thead>
+<tbody>
+<tr><td colspan="4" style="background:var(--accent-soft);font-weight:700">Public (no token)</td></tr>
+<tr><td>GET</td><td><code>/config</code></td><td>Min supported version, plan catalogue, IAP product ids, locales, feature flags</td><td><code>PlanCatalog</code>, <code>config/locales.php</code></td></tr>
+<tr><td>POST</td><td><code>/auth/register</code></td><td>name, email, password, company_name, locale</td><td><code>UserOnboardingService</code></td></tr>
+<tr><td>POST</td><td><code>/auth/login</code></td><td>email, password, device_name, device_id, platform</td><td>Existing credential check + throttle key</td></tr>
+<tr><td>POST</td><td><code>/auth/refresh</code></td><td>Rotate the refresh token</td><td><code>MobileTokenService</code></td></tr>
+<tr><td>POST</td><td><code>/auth/forgot-password</code></td><td>Send reset link</td><td>Laravel password broker</td></tr>
+<tr><td colspan="4" style="background:var(--accent-soft);font-weight:700">Account</td></tr>
+<tr><td>GET</td><td><code>/me</code></td><td>User + company + role + plan + limits + usage in one call</td><td><code>Company::resolvedPlanKey()</code>, <code>featureList()</code></td></tr>
+<tr><td>PATCH</td><td><code>/me</code></td><td>Name, email, locale</td><td><code>ProfileController::update</code> logic</td></tr>
+<tr><td>PUT</td><td><code>/me/password</code></td><td>Change password (revokes all other tokens)</td><td>Existing rules</td></tr>
+<tr><td>DELETE</td><td><code>/me</code></td><td><b>Account deletion — mandatory for App Store 5.1.1(v)</b></td><td><code>ProfileController::destroy</code> logic</td></tr>
+<tr><td>POST</td><td><code>/auth/logout</code></td><td>Revoke this device's tokens</td><td><code>MobileTokenService::revoke</code></td></tr>
+<tr><td colspan="4" style="background:var(--accent-soft);font-weight:700">Core workflow</td></tr>
+<tr><td>GET</td><td><code>/dashboard</code></td><td>The 13 KPI values the web dashboard computes</td><td><code>DashboardMetricsService</code></td></tr>
+<tr><td>GET</td><td><code>/documents</code></td><td>Paginated list; filters <code>status</code>, <code>type</code>, <code>q</code></td><td><code>Document::visibleTo()</code></td></tr>
+<tr><td>POST</td><td><code>/documents</code></td><td>Multipart upload; optional <code>extraction_profile_id</code>; <code>Idempotency-Key</code> supported</td><td><code>PlanEnforcementService</code> + <code>ProcessDocumentJob</code></td></tr>
+<tr><td>GET</td><td><code>/documents/{id}</code></td><td>Detail: statement summary, reconciliation, transactions, jobs, exports</td><td>Existing eager-load set</td></tr>
+<tr><td>GET</td><td><code>/documents/{id}/status</code></td><td><b>New capability.</b> Lightweight poll — <code>{status, progress, error, poll_after_seconds}</code></td><td>—<br><span class="tag t-new">no web equivalent</span></td></tr>
+<tr><td>POST</td><td><code>/documents/{id}/reprocess</code></td><td>Queue a re-run, optionally with a different profile</td><td><code>DocumentController::queueDocument</code></td></tr>
+<tr><td>GET</td><td><code>/documents/{id}/file</code></td><td>Stream the original PDF (auth + policy checked)</td><td><code>Storage::disk('local')</code></td></tr>
+<tr><td>POST</td><td><code>/documents/{id}/export</code></td><td><code>{format: xlsx|csv|json}</code> → returns a short-lived signed download URL</td><td><code>DocumentExportService</code></td></tr>
+<tr><td>POST</td><td><code>/documents/{id}/transactions/approve-all</code></td><td>Bulk approve</td><td><code>ExtractedTransactionController::approveDocument</code></td></tr>
+<tr><td>GET</td><td><code>/transactions</code></td><td>Cross-document review queue; filter by <code>review_status</code></td><td>Existing query</td></tr>
+<tr><td>PATCH</td><td><code>/transactions/{id}</code></td><td>Full row edit + status change</td><td>Existing rules</td></tr>
+<tr><td>GET</td><td><code>/extraction-profiles</code></td><td>List</td><td><code>ExtractionProfile::visibleTo()</code></td></tr>
+<tr><td>PATCH</td><td><code>/extraction-profiles/{id}/toggle</code></td><td>Activate / deactivate</td><td>Existing</td></tr>
+<tr><td>GET</td><td><code>/exports</code></td><td>Export archive, paginated</td><td><code>ExportArchive::visibleTo()</code></td></tr>
+<tr><td>GET</td><td><code>/exports/{id}/download</code></td><td>Stream</td><td>Existing</td></tr>
+<tr><td colspan="4" style="background:var(--accent-soft);font-weight:700">Team &amp; e-sign (read-first in v1)</td></tr>
+<tr><td>GET</td><td><code>/team</code></td><td>Members, invitations, seat usage</td><td><code>Company::reservedSeatCount()</code></td></tr>
+<tr><td>POST</td><td><code>/team/invitations</code></td><td>Invite</td><td><code>InvitationService</code></td></tr>
+<tr><td>PATCH</td><td><code>/team/members/{id}/role</code></td><td>Change role</td><td><code>User::canChangeRoleOf()</code></td></tr>
+<tr><td>DELETE</td><td><code>/team/members/{id}</code></td><td>Remove</td><td><code>User::canRemoveMember()</code></td></tr>
+<tr><td>GET</td><td><code>/signatures</code></td><td>Request list + status</td><td><code>SignatureRequest::visibleTo()</code></td></tr>
+<tr><td>GET</td><td><code>/signatures/{id}</code></td><td>Detail + signer states + audit trail</td><td>Existing</td></tr>
+<tr><td>GET</td><td><code>/signatures/{id}/signed.pdf</code></td><td>Download signed PDF</td><td>Existing</td></tr>
+<tr><td colspan="4" style="background:var(--accent-soft);font-weight:700">Billing &amp; IAP</td></tr>
+<tr><td>GET</td><td><code>/billing</code></td><td>Current entitlement, source (<code>stripe</code>|<code>apple</code>|<code>google</code>|<code>free</code>), usage, purchasable product ids</td><td><code>EntitlementResolver</code></td></tr>
+<tr><td>POST</td><td><code>/billing/purchases/apple</code></td><td><code>{signed_transaction_info}</code> → verify → grant</td><td><code>StoreSubscriptionService</code></td></tr>
+<tr><td>POST</td><td><code>/billing/purchases/google</code></td><td><code>{purchase_token, product_id}</code> → verify → acknowledge → grant</td><td><code>StoreSubscriptionService</code></td></tr>
+<tr><td>POST</td><td><code>/billing/purchases/restore</code></td><td>Re-verify and re-grant (App Store 3.1.1 requires a restore mechanism)</td><td><code>StoreSubscriptionService</code></td></tr>
+<tr><td colspan="4" style="background:var(--accent-soft);font-weight:700">Devices &amp; webhooks</td></tr>
+<tr><td>POST</td><td><code>/devices</code></td><td>Register FCM / APNs token</td><td>—</td></tr>
+<tr><td>DELETE</td><td><code>/devices/current</code></td><td>Unregister on logout</td><td>—</td></tr>
+<tr><td>POST</td><td><code>/webhooks/apple/asn</code></td><td>App Store Server Notifications V2 (unauthenticated, JWS-verified, CSRF-exempt)</td><td><code>AppleReceiptVerifier</code></td></tr>
+<tr><td>POST</td><td><code>/webhooks/google/rtdn</code></td><td>Play Real-Time Developer Notifications via Pub/Sub push</td><td><code>GooglePlayVerifier</code></td></tr>
+</tbody>
+</table>
+
+<h4>Rate limits (mirroring the buckets you already use)</h4>
+<table>
+<thead><tr><th>Bucket</th><th>Limit</th><th>Keyed by</th><th>Applies to</th></tr></thead>
+<tbody>
+<tr><td><code>mobile-auth</code></td><td>5 / min</td><td>email + IP</td><td>login, register, forgot-password</td></tr>
+<tr><td><code>mobile-upload</code></td><td>20 / min</td><td>company</td><td>POST /documents</td></tr>
+<tr><td><code>mobile-read</code></td><td>240 / min</td><td>user</td><td>everything else</td></tr>
+<tr><td><code>mobile-poll</code></td><td>120 / min</td><td>user</td><td>/documents/{id}/status</td></tr>
+</tbody>
+</table>
+
+<!-- ============================================================= -->
+<h2 id="s7"><span class="num">07</span>Authentication design</h2>
+
+<p>You asked for "Flutter authenticates with the Laravel DB, update Laravel just for the Flutter-side login/register, keep all business logic in Laravel". That is exactly what this is.</p>
+
+<div class="flow">REGISTER / LOGIN
+  Flutter                          Laravel                        MySQL
+    │  POST /auth/login              │                              │
+    │  {email, password, device}     │                              │
+    ├───────────────────────────────►│                              │
+    │                                │ RateLimiter (5/min,          │
+    │                                │   key = lower(email)|ip)     │
+    │                                │ Hash::check against          │
+    │                                ├─────────────────────────────►│ users
+    │                                │ MobileTokenService::issue()  │
+    │                                │  access  bsm_at_ + 64 rnd    │
+    │                                │  refresh bsm_rt_ + 64 rnd    │
+    │                                │  store SHA-256 hashes only   │
+    │                                ├─────────────────────────────►│ mobile_*_tokens
+    │  200 {access, refresh,         │                              │
+    │       expires_in: 1800, user}  │                              │
+    │◄───────────────────────────────┤                              │
+
+STORAGE ON DEVICE
+    refresh  → flutter_secure_storage  (iOS Keychain / Android Keystore)
+    access   → memory only, never written to disk
+
+EVERY REQUEST
+    Authorization: Bearer bsm_at_…
+    → AuthenticateMobileToken: hash, look up, check revoked/expired,
+      setUserResolver() AND auth()->setUser(), touch last_used_at (≤1/min)
+    → from here on, IDENTICAL to a web request: same policies,
+      same visibleTo() scope, same services
+
+ON 401
+    dio interceptor → POST /auth/refresh (single-flight, queued retries)
+    → new access + new refresh; OLD refresh is revoked and marked rotated_to
+    → if refresh returns invalid_grant: wipe storage, route to login</div>
+
+<h4>Why rotation with reuse detection matters</h4>
+<p>If a refresh token is ever presented twice, that means either a bug or a stolen token. The server marks the chain compromised and revokes every descendant, forcing a fresh login. Your SEO-BankSheet implementation already does this — and its handover notes record a real bug found in testing: <b>revoking inside the transaction meant the subsequent <code>throw</code> rolled the revocation back and the attacker kept working tokens.</b> <span class="ref">HANDOVER.md:222-227</span> Revoke <em>after</em> the commit. Port the fix, not just the feature.</p>
+
+<h4>Google Sign-In and Apple's Guideline 4.8 — read this before you build the login screen</h4>
+<div class="box warn">
+  <div class="t">Recommendation: ship v1 on iOS with email + password only</div>
+  App Store Guideline 4.8 requires that an app using a third-party or social login service to set up or authenticate the user's primary account <b>also offer an equivalent option</b> whose login service limits collection to name and email, lets users keep their email private, and does not collect in-app interactions for advertising. In practice reviewers expect <b>Sign in with Apple</b> whenever Google Sign-In is present.
+  <br><br>
+  Your web app already offers Google <span class="ref">Auth/GoogleAuthController.php</span>. If you put that button in the iOS app, budget for Sign in with Apple in the same release — including the server side, where Apple returns a private relay address and, on some flows, no name at all after the first authorization.
+  <br><br>
+  <b>Cheapest correct path:</b> v1.0 = email + password on both platforms. v1.1 = Google on Android + (Google &amp; Sign in with Apple) on iOS. This removes a whole class of review risk from your first submission.
+</div>
+
+<h4>Email verification</h4>
+<p>Today verification is implemented but enforced nowhere — <code>User</code> does not implement <code>MustVerifyEmail</code> and no route carries the <code>verified</code> middleware. That is fine for the website. For a mobile app that can be installed by anyone from a public store, <b>I recommend gating mobile registration behind email verification</b> (a soft gate: the account exists, but uploads are blocked until verified). It is a small change confined to the mobile controllers and does not alter web behaviour. Flag it as a decision — see <a href="#s15">§15</a>.</p>
+
+<!-- ============================================================= -->
+<h2 id="s8"><span class="num">08</span>In-app purchase design</h2>
+
+<p>You chose native IAP on both stores with Stripe staying on the Laravel side. That is the right call for store approval, and it is the most intricate part of this project. The whole design hangs on one sentence:</p>
+
+<div class="box info" style="font-size:16px">
+  <b>A purchase made on a phone is a claim. It becomes an entitlement only after your server verifies it with Apple or Google, and the entitlement is written by the same <code>PlanCatalog::applyToCompany()</code> that Stripe already uses.</b>
+</div>
+
+<h3>8.1 Product catalogue</h3>
+<table>
+<thead><tr><th>Plan</th><th>Web price</th><th>Apple / Google product id</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Free</td><td>€0</td><td>—</td><td>Default. No product.</td></tr>
+<tr><td>Starter</td><td>€20/mo</td><td><code>pro.banksheet.starter.monthly</code><br><code>pro.banksheet.starter.yearly</code></td><td>Subscription group "BankSheet Pro", level 2</td></tr>
+<tr><td>Professional</td><td>€79/mo</td><td><code>pro.banksheet.professional.monthly</code><br><code>pro.banksheet.professional.yearly</code></td><td>Same group, level 1 (so upgrade/downgrade works natively)</td></tr>
+<tr><td>Enterprise</td><td>custom</td><td>—</td><td>Sales-led. Show a plain "contact us" form. <b>No price, no external purchase link.</b></td></tr>
+</tbody>
+</table>
+<p>Store price points will not land exactly on €20.00 / €79.00 — pick the nearest tier and accept a small delta, or align the web price to the tier. Commission is 15% under Apple's Small Business Program and Google's equivalent (first $1M/yr), 30% above. Add a yearly plan: it is the single most effective lever against store commission.</p>
+
+<h3>8.2 The entitlement precedence rule</h3>
+<pre><code>EntitlementResolver::resolve(Company $company): array
+{
+    // 1. Stripe wins if it is live. It is the pre-existing source and
+    //    the only one that can be Enterprise.
+    if ($company->subscribed('default')) {
+        return ['plan' => PlanCatalog::resolvePlanKeyForCompany($company), 'source' => 'stripe'];
+    }
+
+    // 2. Otherwise the newest non-expired store subscription.
+    $store = $company->storeSubscriptions()
+        ->whereIn('status', ['active', 'grace_period', 'billing_retry'])
+        ->latest('expires_at')->first();
+
+    if ($store) {
+        return ['plan' => $store->plan_key, 'source' => $store->store];
+    }
+
+    // 3. Otherwise free.
+    return ['plan' => PlanCatalog::defaultKey(), 'source' => 'free'];
+}</code></pre>
+
+<div class="box bad">
+  <div class="t">The double-billing guard is not optional</div>
+  Without it a customer can subscribe on the web <b>and</b> in the app and pay twice, which produces refund requests, chargebacks and — if a reviewer hits it — a rejection.
+  <ul style="margin-bottom:0">
+    <li><code>GET /billing</code> returns <code>can_purchase: false</code> with <code>managed_by: "stripe"</code> when a Stripe subscription is active. The app then hides the purchase buttons and shows "Your plan is managed on banksheet.pro".</li>
+    <li><code>POST /billing/purchases/*</code> returns <b>409 <code>subscription_conflict</code></b> if a Stripe subscription is active, before any store call.</li>
+    <li>The web <code>BillingController::subscribe</code> should refuse when an active store subscription exists and point to App Store / Play subscription management. <span class="tag t-mod">this is the one place a web file might need a guard added</span></li>
+  </ul>
+</div>
+
+<h3>8.3 Apple — the flow that actually gets approved</h3>
+<ol>
+<li><b>App Store Connect:</b> one subscription group, four products, localised names/descriptions in at least English and Italian, a review screenshot per product, and a <b>subscription privacy policy + terms link inside the app</b> (Apple checks this).</li>
+<li><b>In the app:</b> StoreKit 2 via the <code>in_app_purchase</code> plugin. Set <code>appAccountToken</code> to a UUIDv5 derived from <code>company_id</code> — this is what lets a server-to-server notification find the right tenant when no user is logged in.</li>
+<li><b>On purchase:</b> send the <code>signedTransactionInfo</code> JWS to <code>POST /billing/purchases/apple</code>. The client does <em>not</em> decide anything.</li>
+<li><b>On the server:</b> verify the <code>x5c</code> certificate chain up to Apple's root, check <code>bundleId</code> and <code>environment</code>, then call the App Store Server API for the authoritative renewal state. Never trust the JWS payload alone, and <b>never call the deprecated <code>verifyReceipt</code></b>.</li>
+<li><b>Grant:</b> upsert <code>store_subscriptions</code> keyed on <code>(apple, original_transaction_id)</code>, then <code>PlanCatalog::applyToCompany($company, $planKey, 'active')</code>. Finish the transaction on the client only after your server returns 200.</li>
+<li><b>Notifications:</b> configure App Store Server Notifications V2 → <code>/webhooks/apple/asn</code>. Handle <code>SUBSCRIBED</code>, <code>DID_RENEW</code>, <code>DID_CHANGE_RENEWAL_STATUS</code>, <code>DID_FAIL_TO_RENEW</code> (grace period), <code>EXPIRED</code>, <code>GRACE_PERIOD_EXPIRED</code>, <code>REFUND</code>, <code>REVOKE</code>. Deduplicate on <code>notificationUUID</code>.</li>
+<li><b>Restore:</b> a visible "Restore purchases" action is required by 3.1.1. It re-verifies and re-grants.</li>
+<li><b>Sandbox:</b> test with sandbox Apple IDs. Sandbox renewals are compressed (a month ≈ 5 minutes), which is how you test expiry and grace period in an afternoon.</li>
+</ol>
+
+<h3>8.4 Google — the flow that actually gets approved</h3>
+<ol>
+<li><b>Play Console:</b> subscriptions with base plans and offers; a Google Cloud service account granted "View financial data" + "Manage orders and subscriptions"; the JSON key on the VPS, outside the web root.</li>
+<li><b>In the app:</b> Play Billing Library 9 via <code>in_app_purchase_android</code>. Set <code>obfuscatedAccountId</code> to a hash of <code>company_id</code>.</li>
+<li><b>On purchase:</b> send <code>purchaseToken</code> + <code>productId</code> to <code>POST /billing/purchases/google</code>.</li>
+<li><b>On the server:</b> <code>purchases.subscriptionsv2.get</code> → check <code>subscriptionState</code> and <code>expiryTime</code> → grant → <b><code>acknowledge()</code></b>.</li>
+</ol>
+<div class="box bad">
+  <div class="t">Google will refund the customer if you do not acknowledge within 3 days</div>
+  This is the most common way a first Android IAP integration silently loses money. Acknowledge on the server, immediately after a successful grant, and add a nightly sweep that acknowledges anything missed.
+</div>
+<ol start="5">
+<li><b>Notifications:</b> RTDN → Cloud Pub/Sub → push subscription → <code>/webhooks/google/rtdn</code>. Verify the Pub/Sub JWT, deduplicate on <code>messageId</code>, and always re-query the Play API rather than trusting the notification body.</li>
+<li><b>Test:</b> licence testers in Play Console get real purchase flows with test cards and accelerated renewals.</li>
+</ol>
+
+<h3>8.5 Where the money reconciliation lives</h3>
+<p>Nothing about Stripe changes. <code>StripeWebhookController</code>, <code>SubscriptionLifecycleService</code> and the two scheduled billing commands stay exactly as they are. The store path is a sibling, not a replacement, and both converge on the same three lines:</p>
+<pre><code>// Stripe path today — SubscriptionLifecycleService.php:38-72
+$this->plans->applyToCompany($company, $planKey, $status);
+
+// Store path tomorrow — StoreSubscriptionService
+$this->plans->applyToCompany($company, $planKey, $status);   // same call, same limits</code></pre>
+
+<div class="box warn">
+  <div class="t">Build-vs-buy worth ten minutes of thought</div>
+  Everything in §8.3–8.4 is roughly <b>2.5–4 weeks of backend work</b> to do properly, plus ongoing maintenance as both stores evolve their APIs. A subscription infrastructure vendor (RevenueCat and similar) collapses that to a few days plus one webhook, at the cost of a third-party dependency in your billing path and a percentage fee above a free tier.
+  Given that you are one developer maintaining three products, I would at least price it. If you buy, the <code>EntitlementResolver</code> and the double-billing guard in this plan stay exactly the same — only the two verifier classes are replaced.
+</div>
+
+<!-- ============================================================= -->
+<h2 id="s9"><span class="num">09</span>Flutter application architecture</h2>
+
+<h3>9.1 Platform targets</h3>
+<table>
+<thead><tr><th style="width:26%">Item</th><th>Value</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Flutter</td><td><b>3.44 stable</b> (18 May 2026)</td><td>Current stable at time of writing. Pin it in <code>.fvmrc</code> / CI so builds are reproducible.</td></tr>
+<tr><td>Android <code>minSdk</code></td><td>24 (Android 7.0)</td><td>Covers effectively the whole active install base.</td></tr>
+<tr><td>Android <code>targetSdk</code></td><td><b>36 (Android 16)</b></td><td><b>Mandatory for new apps from 31 Aug 2026.</b> Build against it from day one.</td></tr>
+<tr><td>iOS deployment target</td><td>15.0</td><td>StoreKit 2 requires iOS 15+. Also the floor for recent Flutter plugins.</td></tr>
+<tr><td>Formats</td><td>Android App Bundle (.aab), iOS .ipa</td><td>APK is not accepted for new Play submissions.</td></tr>
+</tbody>
+</table>
+
+<h3>9.2 Project layout</h3>
+<pre><code>mobile-app-banksheet/
+├─ lib/
+│  ├─ main.dart                    # entry: dev / staging / prod flavors
+│  ├─ app/
+│  │   ├─ app.dart                 # MaterialApp.router, theme, locale
+│  │   ├─ router.dart              # go_router: auth guard, deep links
+│  │   └─ theme/                   # tokens matching the Tailwind palette
+│  ├─ core/
+│  │   ├─ network/
+│  │   │   ├─ api_client.dart      # dio + baseUrl + X-BankSheet-App
+│  │   │   ├─ auth_interceptor.dart# bearer + single-flight 401 refresh
+│  │   │   ├─ error_mapper.dart    # {error:{code,…}} -> ApiFailure
+│  │   │   └─ retry_policy.dart    # idempotent GET retry, 429 Retry-After
+│  │   ├─ storage/
+│  │   │   ├─ secure_store.dart    # flutter_secure_storage (refresh token)
+│  │   │   └─ db.dart              # drift: offline cache
+│  │   ├─ result.dart              # Result<T, ApiFailure>
+│  │   └─ analytics.dart, logging.dart
+│  ├─ features/
+│  │   ├─ auth/         {data,domain,presentation}
+│  │   ├─ dashboard/
+│  │   ├─ documents/               # list, upload, detail, status polling
+│  │   ├─ transactions/            # review queue, inline edit, approve
+│  │   ├─ profiles/
+│  │   ├─ exports/
+│  │   ├─ signatures/
+│  │   ├─ team/
+│  │   ├─ billing/                 # IAP purchase, restore, plan display
+│  │   └─ settings/                # locale, profile, account deletion
+│  ├─ shared/                      # widgets, formatters, empty states
+│  └─ l10n/                        # 13 ARB files generated from lang/*.json
+├─ test/            unit + widget
+├─ integration_test/ end-to-end
+├─ tool/            gen_arb_from_laravel.dart, bump_version.dart
+├─ android/  ios/
+├─ .github/workflows/ci.yml
+└─ fastlane/</code></pre>
+
+<h3>9.3 Package choices</h3>
+<table>
+<thead><tr><th style="width:22%">Concern</th><th style="width:26%">Package</th><th>Rationale</th></tr></thead>
+<tbody>
+<tr><td>State</td><td><code>flutter_riverpod</code> + <code>riverpod_generator</code></td><td>Compile-safe DI, trivially testable, no BuildContext coupling. Async caching for the polling screens comes free.</td></tr>
+<tr><td>Routing</td><td><code>go_router</code></td><td>Declarative guards for the auth gate; deep links for signature invitations and <code>banksheet://document/{id}</code> from push.</td></tr>
+<tr><td>HTTP</td><td><code>dio</code></td><td>Interceptors, cancel tokens, multipart with progress, per-request timeouts. All four are needed.</td></tr>
+<tr><td>Models</td><td><code>freezed</code> + <code>json_serializable</code></td><td>Immutable, exhaustive union types for status enums, generated <code>fromJson</code>.</td></tr>
+<tr><td>Secure storage</td><td><code>flutter_secure_storage</code></td><td>Keychain / Keystore-backed EncryptedSharedPreferences. Refresh token only.</td></tr>
+<tr><td>Offline cache</td><td><code>drift</code></td><td>Typed SQL, reactive queries, migrations. Enough for read-through caching of documents and transactions.</td></tr>
+<tr><td>IAP</td><td><code>in_app_purchase</code> (+ <code>_storekit</code>, <code>_android</code>)</td><td>Official Flutter plugin. <span class="tag t-risk">VERIFY</span> Confirm the Android sub-plugin version in use is built on Play Billing Library 9 before you lock the version.</td></tr>
+<tr><td>Push</td><td><code>firebase_messaging</code> + <code>flutter_local_notifications</code></td><td>FCM covers both platforms via APNs. Replaces polling for "your statement is ready".</td></tr>
+<tr><td>File input</td><td><code>file_picker</code>, <code>image_picker</code>, <code>cunning_document_scanner</code></td><td>Pick a PDF from Files/Drive, or scan a paper statement with the camera — <b>the one thing the mobile app can do that the website cannot</b>.</td></tr>
+<tr><td>PDF display</td><td><code>pdfrx</code></td><td>Native rendering, no pdf.js and none of its <code>Map.getOrInsertComputed</code> polyfill problem <span class="ref">support/map-get-or-insert-polyfill.js:1-17</span>.</td></tr>
+<tr><td>Signature</td><td><code>signature</code></td><td>Pen capture → PNG, matching what <code>trimmedSignaturePng</code> already produces on the web <span class="ref">app.js:1713</span>.</td></tr>
+<tr><td>Misc</td><td><code>share_plus</code>, <code>package_info_plus</code>, <code>device_info_plus</code>, <code>connectivity_plus</code>, <code>sentry_flutter</code></td><td>Sharing exports, version header, device name for the token record, offline banner, crash reporting.</td></tr>
+</tbody>
+</table>
+
+<h3>9.4 Three implementation details worth deciding up front</h3>
+
+<h4>a. Upload is the riskiest interaction on mobile</h4>
+<p>The server caps uploads at <code>max:20480</code> (20 MB) in a single request <span class="ref">DocumentController.php:63-70</span>, and there is no chunked/resumable path. On a train, a 15 MB scan over a flaky connection will fail repeatedly. Mitigations, in order of value:</p>
+<ul>
+<li>Compress client-side before upload — a camera scan should be rendered to a reasonable-DPI PDF, not a 40 MB photo bundle.</li>
+<li>Enqueue uploads locally and retry with exponential backoff; show a persistent "3 pending uploads" state so nothing is silently lost.</li>
+<li>Send an <code>Idempotency-Key</code> per upload — the server-side pattern already exists <span class="ref">EnforceApiIdempotency.php:29-95</span>, so a retried upload after a timeout will not double-charge quota. <b>Note its known defect: the documented 24-hour TTL is not implemented, so keys are honoured forever.</b> Fix that when you reuse it.</li>
+<li>v2: a resumable upload endpoint (tus-style or a simple chunk API) if telemetry shows failures.</li>
+</ul>
+
+<h4>b. Replace polling with push as early as you can afford</h4>
+<p>Extraction takes 10–90 seconds by your own documentation <span class="ref">Api/V1/DocumentController.php:23-30</span>. Polling <code>/documents/{id}/status</code> every 3 s works and is what v1 should ship, but on mobile it drains battery and dies the moment the app is backgrounded. Firing an FCM message from <code>ProcessDocumentJob</code>'s success path is a two-hour backend change with a disproportionate UX payoff. Put it in v1.1 at the latest.</p>
+
+<h4>c. Reuse the 13 existing locale files</h4>
+<p>You already have 13 key-aligned JSON catalogues with 1881 keys each. Write <code>tool/gen_arb_from_laravel.dart</code> to transform <code>lang/{code}.json</code> into <code>l10n/app_{code}.arb</code> and run it in CI. The mobile app ships fully localised from day one for free, and translations stay in one place. Note the caveat in <code>config/locales.php:8-10</code>: marketing pages are deliberately untranslated — that does not affect the app, which is all authenticated screens.</p>
+
+<!-- ============================================================= -->
+<h2 id="s10"><span class="num">10</span>Screen map: web → mobile</h2>
+
+<p>The web sidebar defines 19 destinations <span class="ref">layouts/app.blade.php:20-43</span>. Here is every one, with an honest port cost.</p>
+
+<table>
+<thead><tr><th style="width:20%">Web feature</th><th style="width:9%">Release</th><th style="width:11%">Cost</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Login / Register / Password reset</td><td><b>v1</b></td><td>Low</td><td>Forms. Sign in with Apple / Google deferred to v1.1 (see §7).</td></tr>
+<tr><td>Dashboard</td><td><b>v1</b></td><td>Low</td><td>13 KPI values, read-only. One endpoint.</td></tr>
+<tr><td>Documents — list / upload / detail</td><td><b>v1</b></td><td>Medium</td><td>The core loop. Add camera scanning, which the web has no equivalent for.</td></tr>
+<tr><td>Transaction review queue</td><td><b>v1</b></td><td>Medium</td><td>14 columns on desktop → a card list with swipe-to-approve on mobile. Inline editing is a genuine improvement over the web UI, which only offers Approve/Reject.</td></tr>
+<tr><td>Exports + archive</td><td><b>v1</b></td><td>Low</td><td>Generate, download, share sheet.</td></tr>
+<tr><td>Settings / Profile / Locale</td><td><b>v1</b></td><td>Low</td><td>Includes account deletion — required by Apple.</td></tr>
+<tr><td>Billing (view + IAP)</td><td><b>v1</b></td><td>High</td><td>See §8. The cost is server-side, not UI.</td></tr>
+<tr><td>Team management</td><td><b>v1</b></td><td>Low</td><td>Members, roles, invitations.</td></tr>
+<tr><td>Extraction profiles — list &amp; toggle</td><td><b>v1</b></td><td>Low</td><td>Read + activate.</td></tr>
+<tr><td>API keys</td><td><b>v1.1</b></td><td>Low</td><td>List / mint / revoke, company-admin only. Low effort, but the raw key is shown exactly once <span class="ref">ApiKeyController.php:69-72</span> — on mobile that needs a copy-to-clipboard sheet the user cannot dismiss by accident.</td></tr>
+<tr><td>Company settings</td><td><b>v1.1</b></td><td>Low</td><td>Company details + read-only plan guardrails. Folded into Settings.</td></tr>
+<tr><td>E-sign — list &amp; status &amp; download</td><td><b>v1</b></td><td>Low</td><td>View only.</td></tr>
+<tr><td>Push notifications</td><td><b>v1.1</b></td><td>Medium</td><td>New capability, no web equivalent.</td></tr>
+<tr><td>E-sign — signing on device</td><td><b>v2</b></td><td>Medium</td><td><code>pdfrx</code> + <code>signature</code>. Your <code>pdf-signature.js</code> already uses percentage-positioned overlays and is explicitly mobile-first <span class="ref">pdf-signature.js:16-30</span>, so the coordinate model ports cleanly.</td></tr>
+<tr><td>PDF tools (13 conversions)</td><td><b>v2</b></td><td>Medium</td><td>All server-side work. The mobile UI is upload → options → poll → download. <code>tools.pdf.status</code> already returns JSON.</td></tr>
+<tr><td>Barcode Generator</td><td><b>v2</b></td><td>Low</td><td>Server renders the image; the client is a form plus a preview. Easiest win of the lot.</td></tr>
+<tr><td>Extraction profile builder</td><td><b>v2</b></td><td>Medium</td><td>Long form + a "test on a sample" preview. Plain Alpine + fetch today, so no exotic dependency.</td></tr>
+<tr><td>Templates + Generated PDFs</td><td><b>v2</b></td><td>Medium</td><td>TinyMCE has no good mobile equivalent — use a simplified rich-text editor or restrict to generating from existing templates.</td></tr>
+<tr><td>Web extraction (crawler)</td><td><b>v2</b></td><td>Low</td><td>Create job, monitor, view results, export. All server-side.</td></tr>
+<tr><td>Signature-field placement</td><td><b>v3</b></td><td>High</td><td>Drag boxes onto rendered pages. Doable but fiddly on a phone.</td></tr>
+<tr><td>Barcode Studio</td><td><b>v3</b></td><td>High</td><td>interact.js drag/resize on PDF pages → rebuild with Flutter gestures.</td></tr>
+<tr><td>Advanced PDF Editor</td><td><b>v3+</b></td><td>Very high</td><td>1179 lines of Konva + pdf-lib + pdf.js, ~18 tools, redaction rasterisation, page reordering. <b>Honestly: consider never building this natively.</b> A tablet-only or "open on desktop" affordance is a legitimate product decision.</td></tr>
+<tr><td>Admin</td><td>—</td><td>—</td><td>Skip. Four paginated tables for you alone; not worth a mobile screen.</td></tr>
+<tr><td>Guest / public / marketing / blog / API docs</td><td>—</td><td>—</td><td>Skip. These are acquisition surfaces for the website. Shipping them in the app risks App Store 4.2 "minimum functionality" and adds nothing.</td></tr>
+</tbody>
+</table>
+
+<!-- ============================================================= -->
+<h2 id="s11"><span class="num">11</span>Phased delivery plan</h2>
+
+<p>Estimates assume one experienced full-stack developer working on this as the primary task. Halve the calendar if backend and mobile run in parallel with two people. They are ranges, not commitments — the IAP phase in particular has a long tail that depends on store review turnaround.</p>
+
+<div class="phase">
+  <div class="ph"><b>Phase 0 — Foundations</b><span class="est">~1 week · backend + mobile</span></div>
+  <div class="pb">
+    <ul>
+      <li>Create <code>C:\Arifur-work\BankSheet\mobile-app-banksheet</code>, <code>flutter create</code>, three flavors, pin Flutter 3.44, set <code>targetSdk 36</code> / iOS 15.</li>
+      <li>Backend: <code>routes/mobile.php</code>, the two <code>bootstrap/app.php</code> lines, <code>config/mobile.php</code>, <code>GET /config</code>, <code>GET /health</code>.</li>
+      <li>CI: GitHub Actions running <code>flutter analyze</code>, <code>flutter test</code>, <code>dart format --set-exit-if-changed</code>, plus <code>pint --test</code> and <code>php artisan test</code> on the Laravel side.</li>
+      <li>Apple Developer + Google Play Console accounts confirmed, bundle id and package name reserved.</li>
+    </ul>
+    <b>Exit:</b> the app boots on both simulators and successfully calls <code>GET /config</code> on a staging URL. CI is green.
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><b>Phase 1 — Auth end to end</b><span class="est">~1.5–2 weeks</span></div>
+  <div class="pb">
+    <ul>
+      <li>Backend: 5 migrations, <code>MobileTokenService</code>, <code>AuthenticateMobileToken</code>, <code>EnforceMobileClientVersion</code>, <code>AuthController</code>, <code>GET /me</code>, <code>DELETE /me</code>.</li>
+      <li>Backend tests: the full auth matrix from §5.6, including rotation-reuse and "a session cookie does not authenticate this API".</li>
+      <li>Mobile: login / register / forgot-password screens, secure storage, dio interceptors with single-flight refresh, auth-guarded router.</li>
+    </ul>
+    <b>Exit:</b> register on the phone → the account is visible in the web admin table; log in on the web with the same credentials; kill and reopen the app and stay logged in; revoke a token server-side and the app returns cleanly to login.
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><b>Phase 2 — The core loop</b><span class="est">~3–4 weeks</span></div>
+  <div class="pb">
+    <ul>
+      <li>Backend: documents (list, upload, detail, status, reprocess, file, export), transactions (list, patch, approve-all), exports, dashboard. All resources + tenancy tests.</li>
+      <li>Mobile: dashboard, document list with filters, upload from Files, <b>camera scan → PDF</b>, upload queue with retry, document detail with statement summary and reconciliation, transaction review with swipe actions and inline edit, export + share sheet.</li>
+      <li>Offline: drift cache for the document and transaction lists; read-only when offline with a clear banner.</li>
+    </ul>
+    <b>Exit:</b> a real bank statement PDF, uploaded from the phone, is extracted, reviewed, approved and exported to XLSX — and the same document looks identical on the website.
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><b>Phase 3 — Account surface</b><span class="est">~1.5–2 weeks</span></div>
+  <div class="pb">
+    <ul>
+      <li>Team management, extraction profile list/toggle, e-sign list + status + signed download, settings, locale switching wired to the 13 ARB catalogues, in-app account deletion.</li>
+      <li>Empty states, error states, offline states, pull-to-refresh — the unglamorous work that decides whether a reviewer calls the app "complete".</li>
+    </ul>
+    <b>Exit:</b> every v1 screen has a designed empty state and a designed error state. No screen can reach a dead end.
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><b>Phase 4 — In-app purchase</b><span class="est">~3–4 weeks</span></div>
+  <div class="pb">
+    <ul>
+      <li>Store setup: products, subscription groups, base plans, offers, localised metadata, review screenshots.</li>
+      <li>Backend: <code>store_subscriptions</code>, <code>store_notifications</code>, both verifiers, <code>EntitlementResolver</code>, the double-billing guard, both webhook controllers, the hourly reconciliation command.</li>
+      <li>Mobile: paywall, purchase, restore, upgrade/downgrade, subscription-management deep links, "managed on the web" state.</li>
+      <li>Test in Apple sandbox and Play licence-tester mode, including expiry, grace period, refund and revoke.</li>
+    </ul>
+    <b>Exit:</b> a sandbox purchase on each store grants the correct plan limits on the company row within seconds, an expiry notification downgrades it, and a Stripe customer is correctly blocked from purchasing in-app.
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><b>Phase 5 — Hardening &amp; store readiness</b><span class="est">~2–3 weeks</span></div>
+  <div class="pb">
+    <ul>
+      <li>Push notifications (FCM/APNs) replacing status polling.</li>
+      <li>Sentry, structured logging, performance pass, accessibility pass (contrast, dynamic type, semantics labels, VoiceOver/TalkBack).</li>
+      <li>Store assets: icon, screenshots for every required device size, feature graphic, descriptions in EN + IT.</li>
+      <li>Privacy: Play Data Safety form, Apple Privacy Nutrition Labels, <code>PrivacyInfo.xcprivacy</code> manifest, privacy policy URL (you already publish <code>/privacy</code>).</li>
+      <li><b>Start the Play closed test now</b> — 12 testers, 14 continuous days, and it must complete before you can request production access.</li>
+      <li>TestFlight external beta on iOS.</li>
+    </ul>
+    <b>Exit:</b> both store listings are complete, both builds pass automated review checks, closed testing has started its 14-day clock.
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><b>Phase 6 — Submission &amp; launch</b><span class="est">~1–2 weeks + review time</span></div>
+  <div class="pb">
+    <ul>
+      <li>Submit. Provide a demo account with a populated company, a sample statement PDF, and reviewer notes explaining that BankSheet Pro is a multi-platform SaaS.</li>
+      <li>Budget for one rejection round on each store — for a first IAP submission this is normal, not a failure.</li>
+      <li>Staged rollout on Play (5% → 20% → 50% → 100%) with crash-rate gates. Phased release on iOS.</li>
+    </ul>
+    <b>Exit:</b> live on both stores.
+  </div>
+</div>
+
+<table>
+<thead><tr><th>Track</th><th>Total</th></tr></thead>
+<tbody>
+<tr><td><b>v1 (Phases 0–6), one developer</b></td><td><b>~13–18 weeks</b> of focused work, plus store review latency</td></tr>
+<tr><td>v1 with backend and mobile in parallel (two people)</td><td>~8–11 weeks</td></tr>
+<tr><td>v2 (PDF tools, e-sign signing, profile builder, templates, web extraction)</td><td>+6–9 weeks</td></tr>
+<tr><td>v3 (Barcode Studio, signature placement, PDF editor)</td><td>+8–14 weeks — reassess whether it is worth it</td></tr>
+</tbody>
+</table>
+
+<!-- ============================================================= -->
+<h2 id="s12"><span class="num">12</span>Google Play submission checklist</h2>
+
+<div class="box bad">
+  <div class="t">Two dates that constrain this project</div>
+  <b>31 August 2026 — target API 36.</b> From that date, new apps and updates must target Android 16 (API 36). An extension to 1 November 2026 can be requested in Play Console. Build against 36 from Phase 0 so this is a non-event.
+  <br><br>
+  <b>12 testers × 14 continuous days.</b> If your Play developer account is a <em>personal</em> account created after 13 November 2023, you must run a closed test with at least 12 testers opted in continuously for 14 days before you can apply for production access. The 14 days must be uninterrupted — a tester who opts out and back in resets. <b>Start recruiting testers during Phase 4, not Phase 6.</b> If your account is an organisation account, this does not apply — confirm which you have.
+</div>
+
+<ul class="chk">
+<li>Play Console app created; package name locked (it can never be changed).</li>
+<li>App signing by Google Play enabled; upload key backed up offline.</li>
+<li><code>targetSdk 36</code>, <code>minSdk 24</code>, AAB output, R8 enabled, ProGuard rules for dio/freezed/Firebase verified on a release build.</li>
+<li><b>Data safety form</b> — declare exactly what you collect: email, name, uploaded documents, device identifiers for push, crash data. Declare encryption in transit and the ability to request deletion. It must match your privacy policy or the submission is rejected.</li>
+<li><b>Financial-features declaration</b> — BankSheet processes bank statements. Play asks whether the app provides financial features. You are a document-processing tool, not a banking or lending app, so the answer is generally "no" — but answer it deliberately and document your reasoning, because a wrong answer here triggers extra review.</li>
+<li>Permissions minimised. No <code>READ_EXTERNAL_STORAGE</code> — use the photo picker and SAF. No <code>QUERY_ALL_PACKAGES</code>. Declare camera only if scanning ships in v1.</li>
+<li>Play Billing Library 9 integrated; RTDN configured; acknowledgement verified end to end.</li>
+<li>Subscriptions with base plans and offers created; localised in EN + IT.</li>
+<li>Store listing: title (≤30 chars), short description (≤80), full description (≤4000), 512×512 icon, 1024×500 feature graphic, ≥2 phone screenshots (plus 7" and 10" tablet sets if you declare tablet support).</li>
+<li>Content rating questionnaire completed.</li>
+<li>Privacy policy URL, support email, account-deletion URL (Play requires a web-accessible deletion route in addition to the in-app one).</li>
+<li>Pre-launch report reviewed — it runs your app on real devices and catches crashes you will not see locally.</li>
+<li>Staged rollout configured.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="s13"><span class="num">13</span>App Store submission checklist</h2>
+
+<ul class="chk">
+<li>Apple Developer Program membership active; App ID, bundle id and provisioning set up.</li>
+<li><b>Guideline 5.1.1(v) — account deletion inside the app.</b> Required because the app supports account creation. The web equivalent is <code>ProfileController::destroy</code> <span class="ref">ProfileController.php:43-59</span>, but four of its six statements are session-bound (<code>Auth::logout()</code>, <code>session()->invalidate()</code>, <code>regenerateToken()</code>, <code>Redirect::to('/')</code>); the mobile <code>DELETE /me</code> reuses <code>$user->delete()</code> and the <code>current_password</code> check, and revokes all tokens instead of touching a session. Put it in Settings, not buried.</li>
+<li><b>Guideline 2.1 — demo account.</b> Provide credentials for a populated account plus a sample bank-statement PDF, and turn the backend on. Reviewers reject apps whose core feature cannot be exercised.</li>
+<li><b>Guideline 3.1.1 — IAP.</b> All plan unlocks go through StoreKit. No prices, no "subscribe on our website", no external purchase links anywhere in the app or its metadata (outside the US storefront this is an explicit prohibition). A "contact sales" form for Enterprise is fine; a link to your Stripe checkout is not.</li>
+<li><b>Guideline 3.1.2 — subscription disclosure.</b> On the purchase screen, before purchase: subscription title, length, price per period, what the user gets, plus links to your Terms and Privacy Policy. Also state that subscriptions auto-renew and can be managed in Account Settings. Missing this is the single most common IAP rejection.</li>
+<li><b>Restore purchases</b> control present and working.</li>
+<li><b>Guideline 4.8</b> — see §7. Shipping email/password only in v1 sidesteps this entirely.</li>
+<li><b>Guideline 4.2 — minimum functionality.</b> A native app that is mostly a WebView of your website gets rejected. This plan is native by design, which is exactly why the WebView shortcut was not recommended.</li>
+<li><b>Privacy:</b> Nutrition Labels in App Store Connect + a <code>PrivacyInfo.xcprivacy</code> manifest in the app and in every third-party SDK you bundle. Declare required-reason API usage (file timestamps, user defaults) accurately.</li>
+<li>Encryption export compliance: set <code>ITSAppUsesNonExemptEncryption = false</code> if you only use standard HTTPS.</li>
+<li>Purpose strings in <code>Info.plist</code> for camera and photo library, written in plain language — Apple rejects placeholder text.</li>
+<li>Screenshots for every required device class; app previews optional.</li>
+<li>Localised metadata in EN + IT at minimum (your customer base is Italian offices and accountants).</li>
+<li>App Store Server Notifications V2 endpoint configured for both sandbox and production.</li>
+<li>TestFlight external beta run before submission — it uses the same review pipeline and surfaces problems early.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="s14"><span class="num">14</span>Risks and blockers found in the current code</h2>
+
+<p>These are real findings from the audit, ordered by how much they affect the mobile project. Each one is a decision for you, not something I have changed.</p>
+
+<table>
+<thead><tr><th style="width:4%">#</th><th style="width:26%">Finding</th><th style="width:9%">Impact</th><th>Why it matters for mobile / what I would do</th></tr></thead>
+<tbody>
+<tr>
+  <td>1</td><td><b>Documents are stored on the local disk, not S3</b><br><span class="ref">DocumentController.php:82</span></td><td><span class="tag t-risk">High</span></td>
+  <td>Every download and preview streams through PHP on your single VPS. Mobile multiplies that traffic. An <code>s3</code> disk is already configured but unused — switching the document disk and serving via time-limited pre-signed URLs would cut server load substantially. <b>Not required for v1, but plan for it before you have real mobile volume.</b></td>
+</tr>
+<tr>
+  <td>2</td><td><b>No push infrastructure, no WebSockets, no document status endpoint</b></td><td><span class="tag t-risk">High</span></td>
+  <td>Extraction takes 10–90 s. Without push, the phone must poll or the user must sit and wait. Ship <code>/documents/{id}/status</code> in v1 and FCM in v1.1.</td>
+</tr>
+<tr>
+  <td>3</td><td><b>Queue is the <code>database</code> driver with one queue</b><br><span class="ref">config/queue.php:16</span></td><td><span class="tag t-mod">Medium</span></td>
+  <td>A 900-second PDF conversion blocks the same queue a 5-second mobile upload sits in. Before launch, split into <code>high</code> (uploads, statements) and <code>low</code> (conversions, crawls) with separate workers — a one-line change per job plus a supervisor config. Redis is the eventual answer.</td>
+</tr>
+<tr>
+  <td>4</td><td><b>The 24-hour idempotency TTL is documented but not implemented</b><br><span class="ref">EnforceApiIdempotency.php:52-56</span></td><td><span class="tag t-mod">Medium</span></td>
+  <td>The middleware's lookup has no time filter and nothing prunes <code>api_documents</code>, so a key is honoured forever. Mobile retries will reuse this mechanism heavily. Add the TTL filter when you reuse it.</td>
+</tr>
+<tr>
+  <td>5</td><td><b>Automatic 7-day API retention deletion does not exist</b><br><span class="ref">api-docs/index.blade.php:345</span></td><td><span class="tag t-mod">Medium</span></td>
+  <td>Your docs page promises results and source files are deleted after 7 days; no prune command does it. This is a stated privacy commitment you are not currently keeping, and both stores' data-safety forms will ask you to declare a retention policy. Worth fixing regardless of mobile.</td>
+</tr>
+<tr>
+  <td>6</td><td><b>Guests receive Enterprise PDF-tool limits</b><br><span class="ref">PdfToolLimitService.php:44</span></td><td><span class="tag t-mod">Medium</span></td>
+  <td><code>$plan = $company ? … : 'enterprise'</code>, while <code>GuestConversionService.php:352</code> comments that guests get free-tier limits. The comment and the code disagree, in the expensive direction. Not a mobile issue — worth a look anyway.</td>
+</tr>
+<tr>
+  <td>7</td><td><b>Email verification is implemented but enforced nowhere</b><br><span class="ref">app/Models/User.php:5,19</span></td><td><span class="tag t-mod">Medium</span></td>
+  <td>Acceptable for a website you drive traffic to. For a public app store listing, unverified accounts are a spam and abuse vector. Recommend a soft gate on mobile registration.</td>
+</tr>
+<tr>
+  <td>8</td><td><b>Google account linking has no confirmation step</b><br><span class="ref">GoogleAuthController.php:54-63</span></td><td><span class="tag t-mod">Medium</span></td>
+  <td>An existing password account is silently linked to a Google identity with a matching email. It relies entirely on Google having verified the address. Worth tightening before you expose Google sign-in on mobile.</td>
+</tr>
+<tr>
+  <td>9</td><td><b><code>storage_limit_mb</code> is written but never enforced</b><br><span class="ref">PlanCatalog.php:107</span></td><td><span class="tag t-keep">Low</span></td>
+  <td>Mobile uploads (especially camera scans) will grow storage faster than web uploads. The limit exists in the plan table — you may want it to actually do something.</td>
+</tr>
+<tr>
+  <td>10</td><td><b>Two divergent feature-check implementations</b><br><span class="ref">PlanEnforcementService.php:334-341 vs Company.php:140-145</span></td><td><span class="tag t-keep">Low</span></td>
+  <td>One reads <code>features_json</code> only, the other unions it with live config. They can disagree. Pick one before a third client (the app) starts depending on the answer.</td>
+</tr>
+<tr>
+  <td>11</td><td><b>API-key scopes are stored but never checked</b><br><span class="ref">ApiKey.php:143-148</span></td><td><span class="tag t-keep">Low</span></td>
+  <td><code>hasScope()</code> has no call site. Do not repeat this in the mobile token layer — either enforce scopes or do not store them.</td>
+</tr>
+<tr>
+  <td>12</td><td><b>Three different upload caps, none discoverable by a client</b><br><span class="ref">DocumentController.php:64 · config/bank_statement.php:64 · config/document-conversion.php:124</span></td><td><span class="tag t-keep">Low</span></td>
+  <td>Document upload is 20 MB (<code>max:20480</code>), the extraction-profile sample upload reads a separate 25 MB config <span class="ref">ExtractionProfileController.php:135</span>, and guest conversions allow 50 MB. Not a contradiction — three different paths — but a client has no way to learn any of them. <b>Expose all three via <code>GET /config</code></b> so the app can reject an oversized file locally instead of after a two-minute upload.</td>
+</tr>
+<tr>
+  <td>13</td><td><b><code>SESSION_SECURE_COOKIE</code> has no default</b><br><span class="ref">config/session.php:172</span></td><td><span class="tag t-mod">Medium</span></td>
+  <td>If unset in production, the session cookie can be sent over plain HTTP. Irrelevant to the token-based mobile API, but worth fixing while you are in there.</td>
+</tr>
+<tr>
+  <td>14</td><td><b>Packagist unreachable from the build environment</b><br><span class="ref">SEO-BankSheet HANDOVER.md:259-269</span></td><td><span class="tag t-risk">High</span></td>
+  <td>This is why the plan hand-rolls token auth instead of installing Sanctum. If you can fix network access to Packagist on the build box, revisit — Sanctum would save roughly a week. <b>Worth trying before Phase 1 starts.</b></td>
+</tr>
+<tr>
+  <td>15</td><td><b>CORS is wide open on <code>api/*</code> and nobody chose that</b><br><span class="ref">no config/cors.php; framework default <code>allowed_origins: ['*']</code></span></td><td><span class="tag t-mod">Medium</span></td>
+  <td>Because <code>config/cors.php</code> was never published, Laravel's base config applies and <code>/api/v1</code> already answers <code>Access-Control-Allow-Origin: *</code>. That is defensible for a public API-key API — a key is a bearer credential, not a cookie — but it is an unexamined default, and <code>api/mobile/v1</code> would silently inherit it. <b>Publish <code>config/cors.php</code> and set the paths and origins deliberately</b> before the mobile routes ship.</td>
+</tr>
+<tr>
+  <td>16</td><td><b><code>DB_CONNECTION</code> falls back to <code>sqlite</code></b><br><span class="ref">config/database.php:20</span></td><td><span class="tag t-keep">Low</span></td>
+  <td>If the env var is ever missing on the VPS, Laravel silently uses SQLite instead of failing loudly. Harmless today because <code>.env</code> sets it; a nasty five minutes if a deploy ever loses the file.</td>
+</tr>
+</tbody>
+</table>
+
+<!-- ============================================================= -->
+<h2 id="s15"><span class="num">15</span>Decisions still needed from you</h2>
+
+<table>
+<thead><tr><th style="width:4%">#</th><th style="width:34%">Decision</th><th>My recommendation</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Is your Google Play developer account personal or organisation?</td><td>Determines whether the 12-tester / 14-day closed test applies. If personal, tester recruitment must begin around Phase 4. Check this today — it is the longest-lead item in the whole plan.</td></tr>
+<tr><td>2</td><td>Build the IAP layer yourself, or use a subscription vendor?</td><td>Get a quote before Phase 4. ~3 weeks of your time versus a dependency and a fee. Everything else in this plan is unaffected either way.</td></tr>
+<tr><td>3</td><td>Add yearly plans?</td><td>Yes. Better retention and materially better economics against a 15–30% store commission.</td></tr>
+<tr><td>4</td><td>Enforce email verification for mobile registration?</td><td>Yes, as a soft gate — account created, uploads blocked until verified. Confined to mobile; no web behaviour changes.</td></tr>
+<tr><td>5</td><td>Google Sign-In / Sign in with Apple in v1?</td><td>No. Email + password in v1.0; both providers together in v1.1. Removes a review-risk category from your first submission.</td></tr>
+<tr><td>6</td><td>Camera scanning in v1?</td><td>Yes. It is the clearest reason for the app to exist, and it is the one thing the website cannot do.</td></tr>
+<tr><td>7</td><td>Move document storage to S3 before or after launch?</td><td>After v1, before you have real volume. Not a launch blocker.</td></tr>
+<tr><td>8</td><td>Ever build the Advanced PDF Editor natively?</td><td>Probably not. Offer "open on desktop" and spend the 8+ weeks elsewhere.</td></tr>
+<tr><td>9</td><td>Does the app also need to cover SEO-BankSheet?</td><td>Assumed no — it is a separate product with a separate database. If you eventually want one app for both, that is an SSO project first, and <code>docs/BANKSHEET_SSO_INTEGRATION.md</code> was promised in that repo but never written.</td></tr>
+</tbody>
+</table>
+
+<div class="box ok">
+  <div class="t">What happens next, on your word</div>
+  Nothing has been created yet beyond this document. When you approve the plan, the first concrete step is Phase 0:
+  scaffold <code>C:\Arifur-work\BankSheet\mobile-app-banksheet</code>, and separately prepare the Laravel additions as a reviewable set of new files that you can inspect before anything is committed.
+  <b>No commit, no push, no deploy — the docuflow and SEO-BankSheet trees stay exactly as they are.</b>
+</div>
+
+<footer>
+  <b>BankSheet Pro — Flutter Mobile App Implementation Plan</b> · 3 August 2026<br>
+  Sources: the repositories at <span class="ref">C:\Arifur-work\BankSheet\docuflow</span> and <span class="ref">C:\Arifur-work\BankSheet\SEO-BankSheet</span>, read at commit-time state on 3 Aug 2026;
+  Apple App Review Guidelines; Google Play target API level requirements; Google Play Console closed-testing requirements; Flutter release documentation.<br>
+  <span class="noprint-hint">Analysis only. No source file was modified, no repository was committed to, nothing was deployed.</span>
+</footer>
+
+</div>
+</body>
+</html>

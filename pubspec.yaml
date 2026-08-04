@@ -1,0 +1,81 @@
+name: banksheet_mobile
+description: BankSheet Pro — bank statement extraction, PDF tools and e-signature on mobile.
+publish_to: "none"
+
+# version: <marketing>+<build>. Bump the build number on every store upload.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.9.0 <4.0.0"
+  flutter: ">=3.35.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- state -------------------------------------------------------------
+  # Riverpod without codegen: every provider in this project is hand written,
+  # so `flutter pub get && flutter run` works with no build_runner step.
+  flutter_riverpod: ^2.6.1
+
+  # --- routing -----------------------------------------------------------
+  go_router: ^14.6.2
+
+  # --- networking --------------------------------------------------------
+  dio: ^5.7.0
+
+  # --- storage -----------------------------------------------------------
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.3
+  sqflite: ^2.4.1
+  path_provider: ^2.1.5
+  path: ^1.9.0
+
+  # --- files and media ---------------------------------------------------
+  file_picker: ^8.1.6
+  image_picker: ^1.1.2
+  image: ^4.3.0
+  open_filex: ^4.5.0
+  share_plus: ^10.1.3
+
+  # --- billing -----------------------------------------------------------
+  # Official Flutter plugin. StoreKit 2 on iOS, Play Billing on Android.
+  # No paid third-party subscription vendor is used anywhere in this app.
+  in_app_purchase: ^3.2.0
+
+  # --- device / platform -------------------------------------------------
+  package_info_plus: ^8.1.2
+  device_info_plus: ^11.2.0
+  connectivity_plus: ^6.1.0
+  url_launcher: ^6.3.1
+
+  # --- ui ----------------------------------------------------------------
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+  # Outfit is the exact family the Laravel site loads
+  # (fonts.bunny.net/css?family=outfit:400,500,600,700,800).
+  # It is bundled rather than fetched so the app renders identically offline.
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Outfit-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Outfit-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Outfit-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Outfit-ExtraBold.ttf
+          weight: 800
