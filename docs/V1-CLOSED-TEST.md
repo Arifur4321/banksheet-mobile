@@ -258,11 +258,40 @@ phone is visible first with `flutter devices`.
 
 ## 7. Deploying the Laravel side
 
-The mobile API is **not in docuflow yet** — `laravel-mobile/` is a staging tree,
-not a package, and its controllers import docuflow's own Models, Jobs and
-Services, so it cannot run anywhere else.
+> ### ✅ 7.1 and 7.2 are DONE — the merge has been applied to `docuflow`
+>
+> **70 new PHP files** were copied in (no-clobber; nothing existing was
+> overwritten) and all three patches applied. `laravel-mobile/` is kept as the
+> reference copy. What is now in `docuflow` and was not before:
+>
+> | | |
+> |---|---|
+> | `config/mobile.php`, `config/mobile_plans.php` | Token TTLs, rate buckets, IAP map · the v1 plan catalogue |
+> | `routes/mobile.php` | 63 endpoints under `/api/mobile/v1` |
+> | `app/Http/Controllers/Mobile/` | 17 controllers + 2 store webhooks |
+> | `app/Http/Resources/Mobile/` | 24 API resources |
+> | `app/Http/Middleware/` | `AuthenticateMobileToken`, `EnforceMobileClientVersion`, `MobileRateLimit` |
+> | `app/Models/` | `MobileAccessToken`, `MobileRefreshToken`, `MobileDevice`, `StoreSubscription`, `StoreNotification` |
+> | `app/Services/Mobile/`, `app/Services/Billing/` | Token service, error catalogue, Apple + Google verifiers |
+> | `app/Console/Commands/PruneMobileTokens.php` | **Written during the merge — see the note below** |
+> | `database/migrations/2026_08_03_*` | 5 new tables, all `create`, no `alter` |
+> | `tests/Feature/Mobile/` | `AuthTest`, `BillingTest` |
+>
+> Patched, additively: `bootstrap/app.php` (routes + 3 aliases + mobile error
+> envelope), `routes/console.php` (2 schedule entries), `BillingController.php`
+> (double-billing guard).
+>
+> **A bug was found while applying the patches.** `PATCH-console-routes.md`
+> schedules `banksheet:prune-mobile-tokens`, but that command had never been
+> written — the daily 03:15 entry would have failed on every run. It has now
+> been implemented against the real token schema (`PruneMobileTokens.php`:
+> chunked, idempotent, `--dry-run`, 30-day retention so support can still
+> answer "why was I signed out on Tuesday"). Verify with
+> `php artisan banksheet:prune-mobile-tokens --dry-run`.
+>
+> The original instructions are kept below for reference.
 
-### 7.1 Merge locally
+### 7.1 Merge locally *(already applied)*
 
 ```powershell
 cd C:\Arifur-work\BankSheet
@@ -272,7 +301,7 @@ Copy-Item .\laravel-mobile\app,.\laravel-mobile\config,.\laravel-mobile\database
 
 Every destination path is new; nothing is overwritten.
 
-### 7.2 Apply the three patches by hand
+### 7.2 The three patches *(already applied)*
 
 From `laravel-mobile/docs/`, each with full before/after:
 
@@ -412,7 +441,8 @@ they are not charged.
 
 | Gap | Impact | Fix |
 |---|---|---|
-| `flutter analyze` / `flutter test` never run | Unknown lint and test state | §5. Do it first. |
+| ~~`flutter analyze` never run~~ | **Done.** 184 issues, 8 errors — all 8 fixed (see §11). 7 were pre-existing, not from the v1 work. | Re-run to confirm |
+| `flutter test` not yet run | Unknown | `flutter test` |
 | `pdfx` version constraint written offline | `pub get` may fail to resolve | `flutter pub add pdfx` |
 | `pdfx` API used from documentation, not compiled | The viewer may need small adjustments | Contained to one file by design |
 | Mobile quotas display-only | App shows 200, server enforces the web number | §2 open decision — pick option B |
@@ -436,3 +466,45 @@ they are not charged.
 7. Point the app at production (no `--dart-define` needed; it is the default)
 8. Keystore → signed AAB → Play Console → closed track
 9. Recruit 12 testers and start the 14-day clock
+
+
+---
+
+## 11. Analyzer pass — 4 August 2026
+
+First `flutter analyze` this codebase has ever had. **8 errors, all fixed.**
+Seven were pre-existing and had nothing to do with the v1 changes; they had
+simply never been caught because the app was built in a sandbox with no Flutter
+SDK.
+
+| File | Error | Fix |
+|---|---|---|
+| `core/network/api_client.dart` | `forEach` on a nullable receiver | `_clean(fields)` is typed nullable; an empty map is the right identity |
+| `core/network/api_exception.dart` | `DioExceptionType` not exhaustive — missing `transformTimeout` | Folded into the existing timeout group: same event from the user's side |
+| `billing/domain/plan_offer.dart` | `PlanLimits.keyApiDocuments` undefined | Made it a private constant here, which is what the file's own header says it should be |
+| `documents/domain/transaction.dart` | `listEquals` undefined | `package:flutter/foundation.dart` was not imported |
+| `review/presentation/review_screen.dart` ×4 | `CustomSemanticsAction` not a type | `package:flutter/semantics.dart` was not imported — material does not re-export it |
+| `test/widget_test.dart` | `MyApp` not a class | The stub `flutter create` generates. Replaced with real `AppConfig` assertions, so `flutter create` now leaves it alone on every machine. |
+
+Warnings also cleared: private type in `AppShell`'s public API (`_Destination`
+→ `ShellDestination`, now unit tested), unused import in `states.dart`,
+unnecessary null-aware operators in `signatures_screen.dart`, `unused_result`
+in `billing_screen.dart`, and the missing `assets/images/` directory — git will
+not carry an empty directory, which is why the Mac reported it absent, so a
+tracked placeholder now lives there.
+
+**Left alone deliberately:** the ~150 `prefer_const_constructors` and
+`use_build_context_synchronously` infos. They are style and defensive-guard
+suggestions, not defects, and churning 150 call sites right before a store
+submission adds risk without adding value. Worth a dedicated pass after the
+closed test.
+
+New test file: `test/shell_test.dart` asserts the thing that would actually hurt
+if it regressed — **a signed-out user is never offered an authenticated tab.**
+
+### One thing to be careful about
+
+You ran this on a MacBook, in a folder called `banksheet-mobile`. Every fix
+above was applied to **`C:\Arifur-work\BankSheet\mobile-app-banksheet`** on
+the Windows machine. Those are two separate copies. Pull or copy across before
+you re-run `flutter analyze`, or you will see the same 184 issues again.

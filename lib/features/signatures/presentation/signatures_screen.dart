@@ -101,8 +101,8 @@ class _SignaturesScreenState extends ConsumerState<SignaturesScreen> {
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   child: UsageMeter(
                     label: S.usageEsign,
-                    used: limits?.esignUsed,
-                    limit: limits?.esignLimit,
+                    used: limits.esignUsed,
+                    limit: limits.esignLimit,
                   ),
                 ),
               ),

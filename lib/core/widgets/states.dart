@@ -11,7 +11,6 @@ import '../i18n/strings.dart';
 import '../network/api_exception.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
-import 'app_card.dart';
 
 /// A shimmering placeholder block. Hand rolled rather than pulled from a
 /// package — it is 40 lines and removes a dependency from the critical path.

@@ -32,9 +32,9 @@ class AppShell extends ConsumerWidget {
   /// Order is deliberate: the reader is first because it is the one thing that
   /// works with no account, and a first-run user who lands on a login wall
   /// uninstalls. Everything else earns its place to the right of it.
-  static List<_Destination> destinationsFor({required bool signedIn}) {
-    return <_Destination>[
-      const _Destination(
+  static List<ShellDestination> destinationsFor({required bool signedIn}) {
+    return <ShellDestination>[
+      const ShellDestination(
         route: AppRoute.viewer,
         path: AppRoute.viewerPath,
         label: 'Read',
@@ -42,7 +42,7 @@ class AppShell extends ConsumerWidget {
         activeIcon: Icons.menu_book_rounded,
       ),
       if (signedIn && Features.dashboardTab)
-        const _Destination(
+        const ShellDestination(
           route: AppRoute.dashboard,
           path: AppRoute.dashboardPath,
           label: 'Home',
@@ -50,7 +50,7 @@ class AppShell extends ConsumerWidget {
           activeIcon: Icons.space_dashboard_rounded,
         ),
       if (signedIn && Features.documents)
-        const _Destination(
+        const ShellDestination(
           route: AppRoute.documents,
           path: AppRoute.documentsPath,
           label: 'Documents',
@@ -58,7 +58,7 @@ class AppShell extends ConsumerWidget {
           activeIcon: Icons.description_rounded,
         ),
       if (signedIn && Features.reviewQueue)
-        const _Destination(
+        const ShellDestination(
           route: AppRoute.review,
           path: AppRoute.reviewPath,
           label: 'Review',
@@ -66,14 +66,14 @@ class AppShell extends ConsumerWidget {
           activeIcon: Icons.fact_check_rounded,
         ),
       if (Features.tools)
-        const _Destination(
+        const ShellDestination(
           route: AppRoute.tools,
           path: AppRoute.toolsPath,
           label: 'Tools',
           icon: Icons.build_outlined,
           activeIcon: Icons.build_rounded,
         ),
-      const _Destination(
+      const ShellDestination(
         route: AppRoute.more,
         path: AppRoute.morePath,
         label: 'More',
@@ -83,10 +83,10 @@ class AppShell extends ConsumerWidget {
     ];
   }
 
-  int _indexFor(BuildContext context, List<_Destination> destinations) {
+  int _indexFor(BuildContext context, List<ShellDestination> destinations) {
     final String location = GoRouterState.of(context).uri.path;
     final int index = destinations.indexWhere(
-      (_Destination d) => location.startsWith(d.path),
+      (ShellDestination d) => location.startsWith(d.path),
     );
     return index < 0 ? 0 : index;
   }
@@ -97,7 +97,7 @@ class AppShell extends ConsumerWidget {
     // rebuilds the bar, so a user who signs in mid-session gets the Documents
     // tab immediately instead of after the next cold start.
     final bool signedIn = ref.watch(tokenStoreProvider).hasSession;
-    final List<_Destination> destinations =
+    final List<ShellDestination> destinations =
         destinationsFor(signedIn: signedIn);
     final int index = _indexFor(context, destinations);
 
@@ -117,7 +117,7 @@ class AppShell extends ConsumerWidget {
             context.goNamed(destinations[i].route);
           },
           destinations: <NavigationDestination>[
-            for (final _Destination d in destinations)
+            for (final ShellDestination d in destinations)
               NavigationDestination(
                 icon: Icon(d.icon),
                 selectedIcon: Icon(d.activeIcon),
@@ -131,8 +131,13 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-class _Destination {
-  const _Destination({
+/// One bottom-navigation destination.
+///
+/// Public because [AppShell.destinationsFor] is the unit under test: the tab
+/// set is a product decision (a guest must never be offered Documents) and
+/// deserves a test that does not need a widget binding to run.
+class ShellDestination {
+  const ShellDestination({
     required this.route,
     required this.path,
     required this.label,

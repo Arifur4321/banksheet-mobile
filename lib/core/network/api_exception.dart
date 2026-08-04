@@ -83,6 +83,11 @@ class ApiException implements Exception {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.receiveTimeout:
+        // Added by a later dio: the response arrived but decoding it ran past
+        // the deadline. From the user's side that is the same event as any
+        // other timeout — the request did not complete in time — so it earns
+        // the same message rather than a second one saying the same thing.
+        case DioExceptionType.transformTimeout:
           return const ApiException(
             code: codeTimeout,
             message:

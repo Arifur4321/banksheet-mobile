@@ -75,7 +75,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   Future<void> _refresh() async {
     ref.invalidate(storeProductsProvider);
     try {
-      await ref.refresh(billingSnapshotProvider.future);
+      // invalidate + read rather than refresh(): identical behaviour, and it
+      // does not return a result the analyzer then insists we consume.
+      ref.invalidate(billingSnapshotProvider);
+      await ref.read(billingSnapshotProvider.future);
     } catch (error) {
       // The provider already holds the failure and ErrorState renders it;
       // letting it out of onRefresh would only break the indicator.

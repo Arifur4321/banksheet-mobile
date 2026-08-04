@@ -12,6 +12,7 @@
 /// "approved" is a slightly different green in two places reads as a bug.
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/i18n/strings.dart';

@@ -159,7 +159,11 @@ class ApiClient {
   }) async {
     final FormData form = FormData();
 
-    _clean(fields).forEach((String key, dynamic value) {
+    // `fields` is non-nullable, so `_clean` cannot return null here — but the
+    // signature allows it, and the analyzer is right to insist. An empty map
+    // is the correct identity for the loop either way.
+    (_clean(fields) ?? const <String, dynamic>{})
+        .forEach((String key, dynamic value) {
       form.fields.add(MapEntry<String, String>(key, value.toString()));
     });
 

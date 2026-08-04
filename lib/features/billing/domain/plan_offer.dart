@@ -202,7 +202,7 @@ class BillingSnapshot {
       usage: PlanLimits.fromJson(usage),
       apiDocuments: _line(
         usage['api_documents'],
-        PlanLimits.keyApiDocuments,
+        _keyApiDocuments,
         S.usageApiDocuments,
       ),
       employees: _line(
@@ -233,6 +233,12 @@ class BillingSnapshot {
   }
 
   /// Bucket keys the billing payload adds on top of [PlanLimits]'.
+  ///
+  /// `api_documents` lives here rather than on [PlanLimits] for the reason
+  /// this file's header gives: only `GET /billing` publishes it, and `GET /me`
+  /// does not. Putting it on the shared type would promise every consumer a
+  /// bucket that is absent from the payload most of them read.
+  static const String _keyApiDocuments = 'api_documents';
   static const String _keyEmployees = 'employees';
   static const String _keyExtractionProfiles = 'extraction_profiles';
 
