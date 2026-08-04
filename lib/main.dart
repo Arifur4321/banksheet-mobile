@@ -18,6 +18,7 @@ import 'app/app.dart';
 import 'core/network/api_client.dart';
 import 'core/network/token_store.dart';
 import 'core/providers.dart';
+import 'core/storage/local_db.dart';
 import 'core/storage/prefs.dart';
 import 'core/storage/secure_store.dart';
 import 'core/utils/logger.dart';
@@ -68,6 +69,11 @@ Future<Bootstrap> _bootstrap() async {
 
   final ClientIdentity identity = await _identity(secure);
 
+  // Opened here so the reader's recent list is ready on frame one. A failure
+  // is survivable: the app still reads PDFs, it just forgets which ones. Never
+  // fail startup over a cache.
+  final LocalDb localDb = await LocalDb.open();
+
   Log.info('BankSheet Pro ${identity.appVersion} on ${identity.platform}');
 
   return Bootstrap(
@@ -75,6 +81,7 @@ Future<Bootstrap> _bootstrap() async {
     secureStore: secure,
     tokenStore: tokens,
     identity: identity,
+    localDb: localDb,
   );
 }
 

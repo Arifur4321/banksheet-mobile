@@ -32,6 +32,16 @@ dependencies:
   path: ^1.9.0
 
   # --- files and media ---------------------------------------------------
+  # Renders PDF pages natively: Pdfium on Android, PDFKit on iOS. Added in
+  # v1.0 for the in-app reader — before this, tapping a PDF handed it to
+  # whatever external viewer the phone happened to have, which is not a
+  # product. `lib/features/viewer/presentation/pdf_viewer_screen.dart` is the
+  # ONLY file that imports it, so swapping renderer is a one-file change.
+  #
+  # NOTE: the constraint below was written offline. Run `flutter pub add pdfx`
+  # once on a machine with pub.dev access to pin the current version, and
+  # commit the resulting pubspec.lock.
+  pdfx: ^2.6.0
   file_picker: ^8.1.6
   image_picker: ^1.1.2
   image: ^4.3.0

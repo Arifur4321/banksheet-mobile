@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'network/api_client.dart';
 import 'network/token_store.dart';
+import 'storage/local_db.dart';
 import 'storage/prefs.dart';
 import 'storage/secure_store.dart';
 
@@ -23,12 +24,17 @@ class Bootstrap {
     required this.secureStore,
     required this.tokenStore,
     required this.identity,
+    required this.localDb,
   });
 
   final Prefs prefs;
   final SecureStore secureStore;
   final TokenStore tokenStore;
   final ClientIdentity identity;
+
+  /// Opened during bootstrap rather than lazily, so the reader can render its
+  /// recent-files list on the first frame instead of flashing an empty state.
+  final LocalDb localDb;
 }
 
 /// Overridden in `main.dart`. Reading it before the override is a programming
@@ -50,6 +56,13 @@ final Provider<TokenStore> tokenStoreProvider =
 
 final Provider<ClientIdentity> clientIdentityProvider =
     Provider<ClientIdentity>((Ref ref) => ref.watch(bootstrapProvider).identity);
+
+/// The on-device SQLite database — recent files and guest usage counters.
+///
+/// Nothing authoritative lives in it: see the header of `storage/local_db.dart`
+/// for what it deliberately does not store and why.
+final Provider<LocalDb> localDbProvider =
+    Provider<LocalDb>((Ref ref) => ref.watch(bootstrapProvider).localDb);
 
 /// Raised when the session ends for any reason — an expired refresh token, a
 /// revoked device, or the user tapping sign out. The router listens and sends

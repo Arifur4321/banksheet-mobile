@@ -1,5 +1,18 @@
 # BankSheet Pro — Mobile
 
+> ## ▶ Start here for v1.0
+>
+> The app has been scoped down for a **Google Play closed test** and now leads
+> with an in-app PDF reader that works with no account. The current architecture,
+> everything that changed, and every command — Flutter setup, USB testing, the
+> Laravel deploy and the Play Console checklist — are in
+> **[`docs/V1-CLOSED-TEST.md`](docs/V1-CLOSED-TEST.md)**.
+>
+> This file remains the deep handover: the full Laravel inventory, the three
+> patches, the IAP mechanics and the design-system reference.
+
+
+
 Flutter client for the BankSheet Pro SaaS already running at **https://banksheet.pro**.
 
 This file is the complete handover: what was built, what changed on the server, how to deploy

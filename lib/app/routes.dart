@@ -118,4 +118,15 @@ abstract final class AppRoute {
 
   static const String about = 'about';
   static const String aboutPath = '/settings/about';
+
+  // ----------------------------------------------------------------- viewer
+  /// The reader tab, and the landing screen for a signed-out user.
+  static const String viewer = 'viewer';
+  static const String viewerPath = '/viewer';
+
+  /// The reader itself. Takes `?path=` and `?title=` as query parameters
+  /// rather than path segments, because a filesystem path contains slashes and
+  /// would otherwise be parsed as extra route segments.
+  static const String pdfView = 'pdf-view';
+  static const String pdfViewPath = '/viewer/read';
 }

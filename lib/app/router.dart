@@ -1,16 +1,31 @@
 /// Navigation graph.
 ///
-/// The auth gate is declarative: [GoRouter.redirect] reads the session state and
-/// sends the user where they belong. No screen ever pushes the login page
-/// imperatively, so there is exactly one place that can get sign-in wrong.
+/// Two things are decided here and nowhere else.
+///
+/// **The auth gate.** [GoRouter.redirect] reads the session and sends the user
+/// where they belong. No screen ever pushes the login page imperatively, so
+/// there is exactly one place that can get sign-in wrong.
+///
+/// **What a signed-out user may reach.** v1 leads with the reader, so the
+/// viewer routes are in [_guestPaths] and open with no account. Everything else
+/// still requires a session. The gate is a deny-list turned inside out: a new
+/// route is private unless someone deliberately adds it to that set, which is
+/// the right default for a product holding other people's bank statements.
+///
+/// **What exists at all.** Routes the v1 [Features] flags turn off are not
+/// registered, so a stale deep link lands on the error page rather than on a
+/// half-supported screen. Turning a flag back on restores its route with no
+/// other edit.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/config/feature_flags.dart';
 import '../core/network/token_store.dart';
 import '../core/providers.dart';
+import '../core/storage/prefs.dart';
 import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
@@ -41,6 +56,8 @@ import '../features/templates/presentation/templates_screen.dart';
 import '../features/tools/presentation/conversions_screen.dart';
 import '../features/tools/presentation/tool_run_screen.dart';
 import '../features/tools/presentation/tools_screen.dart';
+import '../features/viewer/presentation/pdf_viewer_screen.dart';
+import '../features/viewer/presentation/viewer_home_screen.dart';
 import '../features/web_extraction/presentation/web_extraction_create_screen.dart';
 import '../features/web_extraction/presentation/web_extraction_detail_screen.dart';
 import '../features/web_extraction/presentation/web_extraction_results_screen.dart';
@@ -55,8 +72,28 @@ final GlobalKey<NavigatorState> _shellKey = GlobalKey<NavigatorState>(
   debugLabel: 'shell',
 );
 
+/// Reachable with no session at all.
+///
+/// Keep this list short and justify every addition. The reader is here because
+/// it operates entirely on files the user already has on their own phone — it
+/// makes no authenticated call and reads nothing from the workspace.
+const Set<String> _guestPaths = <String>{
+  AppRoute.viewerPath,
+  AppRoute.pdfViewPath,
+};
+
+/// The auth screens, which a signed-in user should never sit on.
+const Set<String> _publicPaths = <String>{
+  AppRoute.splashPath,
+  AppRoute.welcomePath,
+  AppRoute.loginPath,
+  AppRoute.registerPath,
+  AppRoute.forgotPasswordPath,
+};
+
 final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
   final TokenStore tokens = ref.watch(tokenStoreProvider);
+  final Prefs prefs = ref.watch(prefsProvider);
 
   final GoRouter router = GoRouter(
     navigatorKey: _rootKey,
@@ -68,31 +105,39 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       final String location = state.matchedLocation;
 
       // Startup: hold on the splash until the refresh token has been read from
-      // the keychain, otherwise the login screen flashes for one frame on every
-      // cold start for a signed-in user.
+      // the keychain, otherwise the welcome screen flashes for one frame on
+      // every cold start for a signed-in user.
       if (!tokens.isRestored) {
         return location == AppRoute.splashPath ? null : AppRoute.splashPath;
       }
 
-      const Set<String> publicPaths = <String>{
-        AppRoute.splashPath,
-        AppRoute.welcomePath,
-        AppRoute.loginPath,
-        AppRoute.registerPath,
-        AppRoute.forgotPasswordPath,
-      };
-
-      final bool onPublicPage = publicPaths.contains(location);
+      final bool onPublicPage = _publicPaths.contains(location);
+      final bool onGuestPage = _guestPaths.any(
+        (String p) => location == p || location.startsWith('$p/'),
+      );
 
       if (!tokens.hasSession) {
-        return onPublicPage && location != AppRoute.splashPath
-            ? null
+        // The reader is open to everyone.
+        if (onGuestPage) {
+          return null;
+        }
+        // Signing in, registering or recovering a password.
+        if (onPublicPage && location != AppRoute.splashPath) {
+          return null;
+        }
+        // Cold start, or a deep link into the workspace with no session.
+        // Someone who has already seen the pitch goes straight to the reader;
+        // a first-run user sees what the product is first.
+        return prefs.hasOnboarded
+            ? AppRoute.viewerPath
             : AppRoute.welcomePath;
       }
 
-      // Signed in but sitting on an auth page — go to the app.
+      // Signed in but sitting on an auth page — go to the app. The reader is
+      // home for everyone: this is a PDF app that also has a workspace, not a
+      // workspace that also opens PDFs.
       if (onPublicPage) {
-        return AppRoute.dashboardPath;
+        return AppRoute.viewerPath;
       }
 
       return null;
@@ -124,6 +169,18 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         builder: (_, __) => const ForgotPasswordScreen(),
       ),
 
+      // The reader, full screen and outside the shell: reading a document
+      // should not carry a navigation bar competing for the page.
+      GoRoute(
+        parentNavigatorKey: _rootKey,
+        path: AppRoute.pdfViewPath,
+        name: AppRoute.pdfView,
+        builder: (_, GoRouterState s) => PdfViewerScreen(
+          path: s.uri.queryParameters['path'] ?? '',
+          title: s.uri.queryParameters['title'] ?? 'Document',
+        ),
+      ),
+
       // ---------------------------------------------------------- main shell
       ShellRoute(
         navigatorKey: _shellKey,
@@ -131,29 +188,38 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             AppShell(child: child),
         routes: <RouteBase>[
           GoRoute(
+            path: AppRoute.viewerPath,
+            name: AppRoute.viewer,
+            pageBuilder: (_, GoRouterState s) =>
+                const NoTransitionPage<void>(child: ViewerHomeScreen()),
+          ),
+          GoRoute(
             path: AppRoute.dashboardPath,
             name: AppRoute.dashboard,
             pageBuilder: (_, GoRouterState s) =>
                 const NoTransitionPage<void>(child: DashboardScreen()),
           ),
-          GoRoute(
-            path: AppRoute.documentsPath,
-            name: AppRoute.documents,
-            pageBuilder: (_, GoRouterState s) =>
-                const NoTransitionPage<void>(child: DocumentsScreen()),
-          ),
-          GoRoute(
-            path: AppRoute.reviewPath,
-            name: AppRoute.review,
-            pageBuilder: (_, GoRouterState s) =>
-                const NoTransitionPage<void>(child: ReviewScreen()),
-          ),
-          GoRoute(
-            path: AppRoute.toolsPath,
-            name: AppRoute.tools,
-            pageBuilder: (_, GoRouterState s) =>
-                const NoTransitionPage<void>(child: ToolsScreen()),
-          ),
+          if (Features.documents)
+            GoRoute(
+              path: AppRoute.documentsPath,
+              name: AppRoute.documents,
+              pageBuilder: (_, GoRouterState s) =>
+                  const NoTransitionPage<void>(child: DocumentsScreen()),
+            ),
+          if (Features.reviewQueue)
+            GoRoute(
+              path: AppRoute.reviewPath,
+              name: AppRoute.review,
+              pageBuilder: (_, GoRouterState s) =>
+                  const NoTransitionPage<void>(child: ReviewScreen()),
+            ),
+          if (Features.tools)
+            GoRoute(
+              path: AppRoute.toolsPath,
+              name: AppRoute.tools,
+              pageBuilder: (_, GoRouterState s) =>
+                  const NoTransitionPage<void>(child: ToolsScreen()),
+            ),
           GoRoute(
             path: AppRoute.morePath,
             name: AppRoute.more,
@@ -164,131 +230,143 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       ),
 
       // ------------------------------------------------- full-screen routes
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.documentUploadPath,
-        name: AppRoute.documentUpload,
-        builder: (_, __) => const DocumentUploadScreen(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.documentDetailPath,
-        name: AppRoute.documentDetail,
-        builder: (_, GoRouterState s) =>
-            DocumentDetailScreen(documentId: _id(s)),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.toolRunPath,
-        name: AppRoute.toolRun,
-        builder: (_, GoRouterState s) =>
-            ToolRunScreen(toolKey: s.pathParameters['tool'] ?? ''),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.conversionsPath,
-        name: AppRoute.conversions,
-        builder: (_, __) => const ConversionsScreen(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.barcodePath,
-        name: AppRoute.barcode,
-        builder: (_, __) => const BarcodeScreen(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.webExtractionsPath,
-        name: AppRoute.webExtractions,
-        builder: (_, __) => const WebExtractionsScreen(),
-        routes: <RouteBase>[
-          GoRoute(
-            parentNavigatorKey: _rootKey,
-            path: 'create',
-            name: AppRoute.webExtractionCreate,
-            builder: (_, __) => const WebExtractionCreateScreen(),
-          ),
-          GoRoute(
-            parentNavigatorKey: _rootKey,
-            path: ':id',
-            name: AppRoute.webExtractionDetail,
-            builder: (_, GoRouterState s) =>
-                WebExtractionDetailScreen(jobId: _id(s)),
-            routes: <RouteBase>[
-              GoRoute(
-                parentNavigatorKey: _rootKey,
-                path: 'results',
-                name: AppRoute.webExtractionResults,
-                builder: (_, GoRouterState s) =>
-                    WebExtractionResultsScreen(jobId: _id(s)),
-              ),
-            ],
-          ),
-        ],
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.templatesPath,
-        name: AppRoute.templates,
-        builder: (_, __) => const TemplatesScreen(),
-        routes: <RouteBase>[
-          GoRoute(
-            parentNavigatorKey: _rootKey,
-            path: ':id',
-            name: AppRoute.templateDetail,
-            builder: (_, GoRouterState s) =>
-                TemplateDetailScreen(templateId: _id(s)),
-          ),
-        ],
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.generatedPdfsPath,
-        name: AppRoute.generatedPdfs,
-        builder: (_, __) => const GeneratedPdfsScreen(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.signaturesPath,
-        name: AppRoute.signatures,
-        builder: (_, __) => const SignaturesScreen(),
-        routes: <RouteBase>[
-          GoRoute(
-            parentNavigatorKey: _rootKey,
-            path: ':id',
-            name: AppRoute.signatureDetail,
-            builder: (_, GoRouterState s) =>
-                SignatureDetailScreen(signatureId: _id(s)),
-          ),
-        ],
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.exportsPath,
-        name: AppRoute.exports,
-        builder: (_, __) => const ExportsScreen(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.profilesPath,
-        name: AppRoute.profiles,
-        builder: (_, __) => const ProfilesScreen(),
-        routes: <RouteBase>[
-          GoRoute(
-            parentNavigatorKey: _rootKey,
-            path: ':id',
-            name: AppRoute.profileDetail,
-            builder: (_, GoRouterState s) =>
-                ProfileDetailScreen(profileId: _id(s)),
-          ),
-        ],
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootKey,
-        path: AppRoute.billingPath,
-        name: AppRoute.billing,
-        builder: (_, __) => const BillingScreen(),
-      ),
+      if (Features.documents) ...<RouteBase>[
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.documentUploadPath,
+          name: AppRoute.documentUpload,
+          builder: (_, __) => const DocumentUploadScreen(),
+        ),
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.documentDetailPath,
+          name: AppRoute.documentDetail,
+          builder: (_, GoRouterState s) =>
+              DocumentDetailScreen(documentId: _id(s)),
+        ),
+      ],
+      if (Features.tools) ...<RouteBase>[
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.toolRunPath,
+          name: AppRoute.toolRun,
+          builder: (_, GoRouterState s) =>
+              ToolRunScreen(toolKey: s.pathParameters['tool'] ?? ''),
+        ),
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.conversionsPath,
+          name: AppRoute.conversions,
+          builder: (_, __) => const ConversionsScreen(),
+        ),
+      ],
+      if (Features.barcode)
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.barcodePath,
+          name: AppRoute.barcode,
+          builder: (_, __) => const BarcodeScreen(),
+        ),
+      if (Features.webExtraction)
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.webExtractionsPath,
+          name: AppRoute.webExtractions,
+          builder: (_, __) => const WebExtractionsScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              parentNavigatorKey: _rootKey,
+              path: 'create',
+              name: AppRoute.webExtractionCreate,
+              builder: (_, __) => const WebExtractionCreateScreen(),
+            ),
+            GoRoute(
+              parentNavigatorKey: _rootKey,
+              path: ':id',
+              name: AppRoute.webExtractionDetail,
+              builder: (_, GoRouterState s) =>
+                  WebExtractionDetailScreen(jobId: _id(s)),
+              routes: <RouteBase>[
+                GoRoute(
+                  parentNavigatorKey: _rootKey,
+                  path: 'results',
+                  name: AppRoute.webExtractionResults,
+                  builder: (_, GoRouterState s) =>
+                      WebExtractionResultsScreen(jobId: _id(s)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      if (Features.templates) ...<RouteBase>[
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.templatesPath,
+          name: AppRoute.templates,
+          builder: (_, __) => const TemplatesScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              parentNavigatorKey: _rootKey,
+              path: ':id',
+              name: AppRoute.templateDetail,
+              builder: (_, GoRouterState s) =>
+                  TemplateDetailScreen(templateId: _id(s)),
+            ),
+          ],
+        ),
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.generatedPdfsPath,
+          name: AppRoute.generatedPdfs,
+          builder: (_, __) => const GeneratedPdfsScreen(),
+        ),
+      ],
+      if (Features.signatures)
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.signaturesPath,
+          name: AppRoute.signatures,
+          builder: (_, __) => const SignaturesScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              parentNavigatorKey: _rootKey,
+              path: ':id',
+              name: AppRoute.signatureDetail,
+              builder: (_, GoRouterState s) =>
+                  SignatureDetailScreen(signatureId: _id(s)),
+            ),
+          ],
+        ),
+      if (Features.exports)
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.exportsPath,
+          name: AppRoute.exports,
+          builder: (_, __) => const ExportsScreen(),
+        ),
+      if (Features.extractionProfiles)
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.profilesPath,
+          name: AppRoute.profiles,
+          builder: (_, __) => const ProfilesScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              parentNavigatorKey: _rootKey,
+              path: ':id',
+              name: AppRoute.profileDetail,
+              builder: (_, GoRouterState s) =>
+                  ProfileDetailScreen(profileId: _id(s)),
+            ),
+          ],
+        ),
+      if (Features.billing)
+        GoRoute(
+          parentNavigatorKey: _rootKey,
+          path: AppRoute.billingPath,
+          name: AppRoute.billing,
+          builder: (_, __) => const BillingScreen(),
+        ),
       GoRoute(
         parentNavigatorKey: _rootKey,
         path: AppRoute.settingsPath,
@@ -313,12 +391,13 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             name: AppRoute.language,
             builder: (_, __) => const LanguageScreen(),
           ),
-          GoRoute(
-            parentNavigatorKey: _rootKey,
-            path: 'api-keys',
-            name: AppRoute.apiKeys,
-            builder: (_, __) => const ApiKeysScreen(),
-          ),
+          if (Features.apiKeys)
+            GoRoute(
+              parentNavigatorKey: _rootKey,
+              path: 'api-keys',
+              name: AppRoute.apiKeys,
+              builder: (_, __) => const ApiKeysScreen(),
+            ),
           GoRoute(
             parentNavigatorKey: _rootKey,
             path: 'about',
@@ -340,8 +419,8 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
               const Text('That screen does not exist.'),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: () => context.goNamed(AppRoute.dashboard),
-                child: const Text('Go to dashboard'),
+                onPressed: () => context.goNamed(AppRoute.viewer),
+                child: const Text('Go to the reader'),
               ),
             ],
           ),
