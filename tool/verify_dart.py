@@ -13,7 +13,10 @@ is confident, so every finding is worth acting on.
 import os, re, sys, json
 from collections import defaultdict
 
-ROOT = '/root/build/mobile-app-banksheet'
+# Derived from this file's location rather than hardcoded, so the verifier
+# runs from any checkout — it was pinned to the original build sandbox and
+# therefore only ever worked on the machine it was written on.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB = os.path.join(ROOT, 'lib')
 TEST = os.path.join(ROOT, 'test')
 PKG = 'banksheet_mobile'

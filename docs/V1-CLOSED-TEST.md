@@ -508,3 +508,111 @@ You ran this on a MacBook, in a folder called `banksheet-mobile`. Every fix
 above was applied to **`C:\Arifur-work\BankSheet\mobile-app-banksheet`** on
 the Windows machine. Those are two separate copies. Pull or copy across before
 you re-run `flutter analyze`, or you will see the same 184 issues again.
+
+---
+
+## 12. UX and branding pass — 4 August 2026
+
+Driven by testing on a real Android phone over USB and on the iOS simulator.
+
+### What changed
+
+| Problem you hit | Fix |
+|---|---|
+| Had to scroll to reach "I already have an account" | `welcome_screen.dart` rebuilt around `LayoutBuilder`. Every vertical dimension — stage height, title size, all gaps — is now derived from the real viewport in three bands (<600dp, <720dp, taller). Nothing scrolls at default text size on any phone from 4.7" up. |
+| Logo needed real 3D motion | New `lib/core/widgets/pdf_scene.dart`: a six-second loop where a PDF rises, a scan line sweeps down it lighting each line jade as it passes, a spreadsheet lifts out with rows filling in order, and the "Reconciled" pill pops. One `AnimationController`, two `CustomPainter`s, no images and no new package. |
+| Splash was a static mark and a spinner | Runs the same scene. The spinner is still there for the screen reader and for a slow keychain read, but it is no longer the main event. |
+| BankSheet Pro absent from Android's "open with" list for a PDF | Intent filters + a platform channel. See below — **this needs one command from you.** |
+| No app icon | Generated at every density from `tool/native/make_icons.py`. |
+| App name | `S.appName` was already "BankSheet Pro"; the *launcher* label was `banksheet_mobile`. Fixed by the apply script. |
+
+### The one command you must run
+
+`.gitignore` excludes `/android/` and `/ios/` — they are regenerated per machine.
+So the launcher icon, the display name and the PDF intent filters cannot live
+there: they would vanish on every `flutter create`. They live in tracked files
+under `tool/native/` and are installed by a script.
+
+```bash
+flutter create . --platforms=android,ios --org pro.banksheet --project-name banksheet_mobile
+python3 tool/native/apply.py      # <-- icon, name, PDF intent filters
+flutter run
+```
+
+`apply.py` is idempotent — run it after any `flutter create`, after a fresh
+clone, or any time the Android chooser stops offering the app. It reports what
+it applied and what it skipped.
+
+### How "open with" actually works
+
+Three pieces, and all three are needed:
+
+1. **`AndroidManifest.xml`** — `VIEW` intent filters for `application/pdf` over
+   `content://` and `file://`, plus a `SEND` filter so "Share → BankSheet Pro"
+   works. Without these the app reads PDFs perfectly well and no other app will
+   ever offer it one. This is why you saw ChatGPT, Drive and Quick Preview but
+   not BankSheet Pro.
+2. **`MainActivity.kt`** — the hard part is not the filter, it is the URI.
+   Another app hands over a `content://` URI with no filesystem path, readable
+   only while our Activity holds a scoped grant that can be revoked the moment
+   we return. `pdfx` needs a real file. So the bytes are copied once into our
+   own cache and Dart gets that path. Copying is the right call, not a
+   workaround: holding a borrowed file descriptor across a route transition
+   fails intermittently on exactly the devices you cannot reproduce on.
+3. **`lib/core/platform/incoming_pdf.dart` + `app/app.dart`** — cold start asks
+   for a pending file once the first frame is up; an already-running app
+   receives `onNewIntent` over the channel. The value is *consumed* on read, so
+   a hot restart does not reopen the same document forever.
+
+The reader route is in the router's guest allow-list, so a PDF opened from Gmail
+works with no account — which is the whole promise of leading with the reader.
+
+### The icon
+
+`tool/native/make_icons.py` draws it from the brand tokens and writes 24 files:
+five Android densities plus adaptive foregrounds, the 512px Play listing asset,
+and the full iOS set with alpha stripped (an icon with an alpha channel is
+rejected at upload). A white page whose top is ruled lines and whose bottom is a
+grid of cells — the product in one silhouette — on the forest-to-jade wash, with
+the same bolt the "Reconciled" pill carries.
+
+It is a script rather than exported PNGs on purpose: an icon that exists only as
+binary output cannot be adjusted without the original, and "who has the Figma
+file" is a question no handover should have to answer.
+
+### Verification — read this carefully
+
+**I could not compile any of it.** The Flutter SDK host returns 403 from the
+environment this was written in, so there is no `flutter analyze` and no
+`flutter test` behind this pass.
+
+What *was* run is `tool/verify_dart.py`, after fixing it — its `ROOT` was
+hardcoded to the original build sandbox, so it had never run anywhere else:
+
+```
+files: 162   declarations: 598   packages: 22
+ERRORS: 0
+WARNINGS: 80
+```
+
+That checks balanced delimiters, that every import resolves to a real file,
+that every `package:` import is declared in `pubspec.yaml`, that every `S.*`,
+`AppColors.*`, `AppText.*`, `AppSpacing.*`, `AppRoute.*` member exists, and that
+every provider is declared. The 80 warnings are all SDK and package types its
+allow-list does not enumerate (`ClipRect`, `RRect`, `Database`, `MethodCall`,
+`PdfControllerPinch`, …) — the same false positives §13 of the README describes.
+
+**One real bug was caught and fixed during this pass, by reasoning rather than
+by a tool:** the first draft of the welcome screen put a `Spacer` inside a
+`SingleChildScrollView`. A scroll view hands its child unbounded height, and a
+flex child in an unbounded Column throws at runtime. No static check catches it
+— only a device would have. It is now wrapped in `IntrinsicHeight`.
+
+**Still unverified and needing a device:** the `pdfx` API calls, every layout
+under real constraints, and the whole native bridge. Please run:
+
+```bash
+flutter analyze
+flutter test
+flutter run          # then: open a PDF from Files/Gmail and pick BankSheet Pro
+```
