@@ -127,9 +127,14 @@ def ios_checks():
     check(any(i == PACKAGE for i in ids),
           f'bundle identifier is {PACKAGE}', 'python3 tool/native/apply.py')
 
-    podfile = read(os.path.join(IOS, 'Podfile'))
-    check(bool(re.search(r"^platform :ios, '1[5-9]", podfile, re.M)),
-          'Podfile targets iOS 15 or later', 'python3 tool/native/apply.py')
+    podfile_path = os.path.join(IOS, 'Podfile')
+    if not os.path.exists(podfile_path):
+        # CocoaPods writes it during the first iOS build, which only happens on
+        # a Mac. Its absence on Windows is not a defect.
+        print('  --    Podfile not generated yet (normal off macOS)')
+    else:
+        check(bool(re.search(r"^platform :ios, '1[5-9]", read(podfile_path), re.M)),
+              'Podfile targets iOS 15 or later', 'python3 tool/native/apply.py')
 
 
 def main():

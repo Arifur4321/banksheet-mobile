@@ -60,10 +60,43 @@ SS = 4  # supersample factor
 
 
 def _rr(d, box, r, fill):
-    """rounded_rectangle that tolerates a radius larger than half the box."""
+    """A rounded rectangle that survives being drawn very small.
+
+    Pillow's `rounded_rectangle` draws the straight middle of the shape as an
+    inner rectangle inset by `radius + 1` on each side. When the box is only a
+    few pixels tall — which happens on the 20px iOS icon, where the whole "PDF"
+    chip is about five pixels — that inner rectangle comes out inverted and
+    Pillow raises `ValueError: y1 must be greater than or equal to y0`.
+
+    Clamping the radius to half the box is not enough, because the `+ 1` is
+    still there. So the radius is clamped to (side - 2) / 2, and anything too
+    small to round is drawn square: at that size a corner radius is sub-pixel
+    and invisible anyway.
+
+    Degenerate boxes are skipped rather than raising. Callers derive geometry
+    from a glyph size that can legitimately round to nothing at 20px, and a
+    missing three-pixel detail is not a reason to fail the whole icon set.
+    """
     x0, y0, x1, y1 = box
-    r = max(0, min(r, (x1 - x0) / 2, (y1 - y0) / 2))
+    if x1 <= x0 or y1 <= y0:
+        return
+
+    w, h = x1 - x0, y1 - y0
+    r = max(0.0, min(r, (w - 2) / 2, (h - 2) / 2))
+
+    if r < 1 or w < 4 or h < 4:
+        d.rectangle((x0, y0, x1, y1), fill=fill)
+        return
+
     d.rounded_rectangle((x0, y0, x1, y1), radius=r, fill=fill)
+
+
+def _rect(d, box, fill):
+    """`rectangle` with the same degenerate-box guard as [_rr]."""
+    x0, y0, x1, y1 = box
+    if x1 <= x0 or y1 <= y0:
+        return
+    d.rectangle((x0, y0, x1, y1), fill=fill)
 
 
 # --------------------------------------------------------------- lettering ---
@@ -79,28 +112,42 @@ def _letter_p(d, x, y, w, h, t, fg, bg):
     _rr(d, (x + t, y + t, x + w - t, y + bowl_h - t),
         min(w - 2 * t, bowl_h - 2 * t) * 0.40, bg)
     # The stem is drawn last so it closes the left side of the counter.
-    d.rectangle((x, y, x + t, y + h), fill=fg)
+    _rect(d, (x, y, x + t, y + h), fg)
 
 
 def _letter_d(d, x, y, w, h, t, fg, bg):
     _rr(d, (x, y, x + w, y + h), min(w, h) * 0.42, fg)
     _rr(d, (x + t, y + t, x + w - t, y + h - t),
         min(w - 2 * t, h - 2 * t) * 0.38, bg)
-    d.rectangle((x, y, x + t, y + h), fill=fg)
+    _rect(d, (x, y, x + t, y + h), fg)
 
 
 def _letter_f(d, x, y, w, h, t, fg, bg):
-    d.rectangle((x, y, x + t, y + h), fill=fg)                       # stem
-    d.rectangle((x, y, x + w, y + t), fill=fg)                       # top arm
-    d.rectangle((x, y + h * 0.42, x + w * 0.80, y + h * 0.42 + t),
-                fill=fg)                                             # mid arm
+    _rect(d, (x, y, x + t, y + h), fg)                       # stem
+    _rect(d, (x, y, x + w, y + t), fg)                       # top arm
+    _rect(d, (x, y + h * 0.42, x + w * 0.80, y + h * 0.42 + t), fg)  # mid arm
+
+
+# Below this letter height, in pixels of the supersampled canvas, the wordmark
+# is drawn as nothing and the chip stays a solid bar. On the 20pt iOS icon the
+# letters would be about one pixel tall — illegible at best, and mud once the
+# whole thing is downsampled. Every well-drawn small icon degrades this way.
+MIN_WORD_HEIGHT = 10
 
 
 def _draw_pdf_word(d, x, y, w, h, fg, bg):
     """P D F laid out across a box of (w, h), optically spaced."""
+    if h < MIN_WORD_HEIGHT or w < MIN_WORD_HEIGHT * 2:
+        return
+
     gap = w * 0.085
     lw = (w - gap * 2) / 3
     t = max(1.0, h * 0.20)
+
+    # Each letter needs room for two strokes plus a counter between them.
+    if lw <= t * 2.2:
+        return
+
     _letter_p(d, x, y, lw, h, t, fg, bg)
     _letter_d(d, x + lw + gap, y, lw, h, t, fg, bg)
     _letter_f(d, x + (lw + gap) * 2, y, lw, h, t, fg, bg)

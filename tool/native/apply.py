@@ -244,7 +244,7 @@ GRADLE_SIGNING = '''
 //     storePassword=...
 //     keyPassword=...
 //     keyAlias=upload
-//     storeFile=upload-keystore.jks
+//     storeFile=app/upload-keystore.jks
 //
 // and generate the keystore once with:
 //
@@ -252,32 +252,70 @@ GRADLE_SIGNING = '''
 //             -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 //
 // When key.properties is absent the release build falls back to the debug key,
-// so `flutter build apk --release` still works for a developer with no key.
-// Play will refuse a debug-signed bundle, which is the correct outcome: a
-// build that cannot be uploaded is better than one that uploads under the
-// wrong identity and can never be updated.
+// so `flutter run` and `flutter build apk` still work for a developer with no
+// key. Play will refuse a debug-signed bundle, which is the correct outcome: a
+// build that cannot be uploaded beats one that uploads under the wrong
+// identity and can never be updated.
+//
+// The file is parsed by hand rather than with java.util.Properties, and that
+// is not a preference. Inside a Gradle Kotlin build script `java` resolves to
+// the Java plugin's extension, not to the JDK package, so `java.util.Properties`
+// fails to compile with "Unresolved reference: util". An `import` at the top of
+// the file would fix it, but this script patches build.gradle.kts in place and
+// cannot reliably insert one above the `plugins {}` block. Six lines of Kotlin
+// stdlib have no such problem.
 // ---------------------------------------------------------------------------
 val keystorePropertiesFile = rootProject.file("key.properties")
-val keystoreProperties = java.util.Properties().apply {
+val keystoreProperties: Map<String, String> =
     if (keystorePropertiesFile.exists()) {
-        keystorePropertiesFile.inputStream().use { load(it) }
+        keystorePropertiesFile.readLines()
+            .map { it.trim() }
+            .filter { it.contains("=") && !it.startsWith("#") }
+            .associate {
+                val i = it.indexOf("=")
+                it.substring(0, i).trim() to it.substring(i + 1).trim()
+            }
+    } else {
+        emptyMap()
     }
-}
 
 '''
 
 GRADLE_SIGNING_CONFIGS = '''    signingConfigs {
         create("release") {
             if (keystorePropertiesFile.exists()) {
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
+                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"]
             }
         }
     }
 
 '''
+
+# The first release of this script emitted `java.util.Properties()`, which does
+# not compile in a Gradle Kotlin script. Anyone who ran that version has a
+# broken build.gradle.kts, and the "already present" guard below would happily
+# leave it broken. These two replacements upgrade it in place.
+GRADLE_BROKEN_PROPS = '''val keystoreProperties = java.util.Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}'''
+
+GRADLE_FIXED_PROPS = '''val keystoreProperties: Map<String, String> =
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.readLines()
+            .map { it.trim() }
+            .filter { it.contains("=") && !it.startsWith("#") }
+            .associate {
+                val i = it.indexOf("=")
+                it.substring(0, i).trim() to it.substring(i + 1).trim()
+            }
+    } else {
+        emptyMap()
+    }'''
 
 KEY_PROPERTIES_EXAMPLE = '''# Copy to android/key.properties and fill in. NEVER commit the real file —
 # .gitignore already excludes android/key.properties and *.jks.
@@ -335,6 +373,21 @@ def android_gradle(base):
                        ('compileSdk', COMPILE_SDK)):
         s = re.sub(rf'{key}\s*=\s*[^\n]+', f'{key} = {value}', s, count=1)
     _say(ok, f'minSdk {MIN_SDK}, targetSdk {TARGET_SDK}, compileSdk {COMPILE_SDK}')
+
+    # Repair a tree patched by the first, broken release of this script before
+    # deciding whether anything needs installing.
+    if GRADLE_BROKEN_PROPS in s:
+        s = s.replace(GRADLE_BROKEN_PROPS, GRADLE_FIXED_PROPS, 1)
+        s = s.replace('keystoreProperties.getProperty("keyAlias")',
+                      'keystoreProperties["keyAlias"]')
+        s = s.replace('keystoreProperties.getProperty("keyPassword")',
+                      'keystoreProperties["keyPassword"]')
+        s = s.replace('file(keystoreProperties.getProperty("storeFile"))',
+                      'keystoreProperties["storeFile"]?.let { file(it) }')
+        s = s.replace('keystoreProperties.getProperty("storePassword")',
+                      'keystoreProperties["storePassword"]')
+        _say(ok, 'repaired the java.util.Properties signing block '
+                 '(it does not compile in a Gradle Kotlin script)')
 
     if 'keystorePropertiesFile' not in s:
         # Ahead of the `android {` block: the properties are read at
@@ -753,7 +806,16 @@ def ios_podfile(base):
     """
     podfile = os.path.join(base, 'Podfile')
     if not os.path.exists(podfile):
-        _say(warn, 'Podfile missing — run `flutter create .` first')
+        # Expected on Windows and Linux: the Podfile is generated by CocoaPods
+        # during the first iOS build, which only happens on a Mac. Reporting it
+        # as a warning there taught the reader to ignore warnings, which is the
+        # opposite of what this script's output is for.
+        if sys.platform == 'darwin':
+            _say(warn, 'Podfile missing — run `cd ios && pod install`, '
+                       "then re-run this script to set the platform to 15.0")
+        else:
+            print('  --   Podfile not generated on this OS; run this script '
+                  'again on the Mac before the first iOS build')
         return
 
     s = open(podfile, encoding='utf-8').read()
