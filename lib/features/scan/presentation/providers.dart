@@ -115,7 +115,10 @@ class ScanController extends StateNotifier<ScanState> {
       );
     } on Object catch (e, s) {
       Log.error('Camera capture failed', e, s);
-      state = state.copyWith(phase: ScanPhase.editing, error: e);
+      state = state.copyWith(
+        phase: ScanPhase.editing,
+        error: ScanPickerFailed(_pickerMessage(e, camera: true)),
+      );
     }
   }
 
@@ -142,7 +145,10 @@ class ScanController extends StateNotifier<ScanState> {
       );
     } on Object catch (e, s) {
       Log.error('Gallery pick failed', e, s);
-      state = state.copyWith(phase: ScanPhase.editing, error: e);
+      state = state.copyWith(
+        phase: ScanPhase.editing,
+        error: ScanPickerFailed(_pickerMessage(e, camera: false)),
+      );
     }
   }
 
@@ -154,16 +160,51 @@ class ScanController extends StateNotifier<ScanState> {
     state = state.copyWith(pages: next, clearError: true);
   }
 
-  /// Moves a page, using [ReorderableListView]'s index convention where the
-  /// destination is computed before the source is removed.
-  void reorder(int oldIndex, int newIndex) {
-    if (oldIndex < 0 || oldIndex >= state.pageCount) {
+  /// Swaps a page with the one above it.
+  ///
+  /// A swap, not an insert-at-index: the list is driven by two buttons now, so
+  /// "up" means exactly one position and the off-by-one that
+  /// `ReorderableListView`'s index convention invites cannot happen.
+  void moveUp(int index) => _swap(index, index - 1);
+
+  void moveDown(int index) => _swap(index, index + 1);
+
+  void _swap(int a, int b) {
+    final int n = state.pageCount;
+    if (a < 0 || b < 0 || a >= n || b >= n || a == b) {
       return;
     }
     final List<ScanPage> next = <ScanPage>[...state.pages];
-    final int target = newIndex > oldIndex ? newIndex - 1 : newIndex;
-    next.insert(target.clamp(0, next.length - 1), next.removeAt(oldIndex));
+    final ScanPage tmp = next[a];
+    next[a] = next[b];
+    next[b] = tmp;
     state = state.copyWith(pages: next, clearError: true);
+  }
+
+  /// Claims a capture Android discarded while the camera app was in the
+  /// foreground. See [ScanRepository.recoverLostCaptures] — this is the reason
+  /// a photo could be taken and then simply not appear.
+  Future<void> recoverLostCaptures() async {
+    try {
+      final List<ScanPage> recovered = await _repo.recoverLostCaptures();
+      if (recovered.isEmpty || !mounted) {
+        return;
+      }
+      final int room = maxPages - state.pageCount;
+      if (room <= 0) {
+        return;
+      }
+      state = state.copyWith(
+        pages: <ScanPage>[
+          ...state.pages,
+          ...recovered.take(room),
+        ],
+        phase: ScanPhase.editing,
+      );
+    } on Object catch (e, s) {
+      Log.warn('Could not recover lost captures: $e');
+      Log.debug(s.toString());
+    }
   }
 
   void clear() => state = const ScanState();
@@ -199,6 +240,38 @@ class ScanTooManyPages implements Exception {
 
   final int selected;
   final int limit;
+}
+
+/// Turns a `PlatformException` into a sentence.
+///
+/// image_picker reports refusals as error codes on a platform exception, and
+/// putting `camera_access_denied` on screen tells the user nothing and gives
+/// them nowhere to go. The three codes below are the ones that actually happen
+/// in the field; anything else falls through to a generic line, and the real
+/// exception is already in the log via [Log.error].
+String _pickerMessage(Object error, {required bool camera}) {
+  final String raw = error.toString();
+
+  if (raw.contains('camera_access_denied') ||
+      raw.contains('photo_access_denied')) {
+    return camera
+        ? 'Camera access is off for BankSheet Pro. Turn it on in Settings to '
+            'photograph a page.'
+        : 'Photo access is off for BankSheet Pro. Turn it on in Settings to '
+            'pick images.';
+  }
+  if (raw.contains('no_available_camera') || raw.contains('no_camera')) {
+    return 'This device has no camera available. Choose images from the '
+        'gallery instead.';
+  }
+  if (raw.contains('already_active')) {
+    // Two rapid taps. Harmless, and the first picker is still coming.
+    return 'One moment — the picker is already opening.';
+  }
+  return camera
+      ? 'The camera could not be opened. Try again, or pick an image from the '
+          'gallery.'
+      : 'Those images could not be opened. Try picking them again.';
 }
 
 final StateNotifierProvider<ScanController, ScanState> scanControllerProvider =

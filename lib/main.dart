@@ -46,6 +46,62 @@ Future<void> main() async {
     Log.error('Flutter framework error', details.exception, details.stack);
   };
 
+  // What a user sees when a widget throws while building.
+  //
+  // The default is a red screen in debug and a bare grey box in release, and
+  // the grey box is the real problem: a tester photographs it, sends you the
+  // photo, and it contains no information whatsoever. This one names the
+  // failure on screen, which turns "the scan page is blank" into a bug report
+  // that can be acted on without a cable and a laptop.
+  //
+  // Deliberately not a pretty "something went wrong" card. Anyone looking at
+  // this is already having a bad time; the only thing that helps them, or you,
+  // is text that can be read out or screenshotted.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    Log.error('Widget build failed', details.exception, details.stack);
+    return Container(
+      color: const Color(0xFF0C0A09),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(
+              Icons.error_outline_rounded,
+              color: Color(0xFF6EE7B7),
+              size: 40,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'This screen could not be drawn',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFFFAFAF9),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.none,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              details.exceptionAsString(),
+              textAlign: TextAlign.center,
+              maxLines: 8,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFFA8A29E),
+                fontSize: 12,
+                height: 1.4,
+                decoration: TextDecoration.none,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  };
+
   final Bootstrap bootstrap = await _bootstrap();
 
   runApp(

@@ -5,24 +5,24 @@
 /// prior explanation — so everything it needs happens on the device, and the
 /// only wall is the one at the end.
 ///
-/// Layout follows the shape of the job rather than the shape of the data:
+/// **A note on why this screen is deliberately boring.** The first version used
+/// [ReorderableListView] for drag-to-reorder, a [CustomPaint] dashed border and
+/// a footer slot. On a real device it rendered blank in release and threw
+/// `'_dependents.isEmpty': is not true` in debug — a framework assertion that
+/// fires when an inherited element is unmounted with dependents still attached,
+/// which `ReorderableListView`'s internal `GlobalKey` reparenting is a known way
+/// to provoke. Reordering four scanned pages is not worth a screen that can
+/// fail to paint. It is now a plain [ListView] with explicit move controls, and
+/// every widget on it is one that has been in Flutter since 1.0.
+///
+/// Layout follows the shape of the job:
 ///
 ///   * **Empty** — two large targets, camera and gallery, and a line saying how
-///     many free PDFs are left. Nothing else; a first-run user with an empty
-///     page grid does not need a toolbar.
-///   * **With pages** — a reorderable grid of thumbnails with a delete on each,
-///     an "Add page" tile in the flow, and a persistent bottom bar carrying the
-///     page count and the one primary action.
-///
-/// The primary action is deliberately a bottom bar and not a FAB. A FAB floats
-/// over the last row of a grid, and the last row of this grid is where the "add
-/// another page" tile lives — the two would fight for the same corner on every
-/// scan longer than six pages.
+///     many free PDFs are left.
+///   * **With pages** — a list of page cards with move/delete on each, an
+///     "Add page" button at the end of the list, and a persistent bottom bar
+///     carrying the page count and the one primary action.
 library;
-
-// `PathMetric` is not among the dart:ui types `package:flutter/painting.dart`
-// re-exports, so the dashed outline at the bottom of this file needs it by name.
-import 'dart:ui' show PathMetric;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,41 +46,68 @@ class ScanScreen extends ConsumerStatefulWidget {
 
   /// Which picker to open on arrival.
   ///
-  /// The welcome and home screens promise "Scan to PDF", and landing on an
-  /// empty screen that then asks *how* is one tap of hesitation at exactly the
-  /// wrong moment. Passing `ScanSource.camera` opens the camera immediately and
-  /// the grid is what the user comes back to.
+  /// The welcome and home screens promise "Scan to PDF", and landing on a
+  /// screen that then asks *how* is one tap of hesitation at the wrong moment.
   final ScanSource? startWith;
 
   @override
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends ConsumerState<ScanScreen> {
+class _ScanScreenState extends ConsumerState<ScanScreen>
+    with WidgetsBindingObserver {
   bool _autoStarted = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     // After the first frame: opening a platform picker during build races the
     // route transition, and on iOS the sheet can be presented on a view
     // controller that is still animating in.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      // Android can kill this process while the camera app is in the
+      // foreground. The photo was still taken; it is waiting in the picker's
+      // cache and is lost forever unless it is claimed here. This is the whole
+      // explanation for "I took a photo and nothing happened".
+      await ref.read(scanControllerProvider.notifier).recoverLostCaptures();
+
       if (!mounted || _autoStarted || widget.startWith == null) {
         return;
       }
       _autoStarted = true;
-      final ScanController c = ref.read(scanControllerProvider.notifier);
       if (ref.read(scanControllerProvider).isEmpty) {
-        switch (widget.startWith!) {
-          case ScanSource.camera:
-            c.addFromCamera();
-          case ScanSource.gallery:
-            c.addFromGallery();
-        }
+        _start(widget.startWith!);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Coming back from the camera after the OS reclaimed us: same recovery.
+    if (state == AppLifecycleState.resumed && mounted) {
+      ref.read(scanControllerProvider.notifier).recoverLostCaptures();
+    }
+  }
+
+  void _start(ScanSource source) {
+    final ScanController c = ref.read(scanControllerProvider.notifier);
+    switch (source) {
+      case ScanSource.camera:
+        c.addFromCamera();
+      case ScanSource.gallery:
+        c.addFromGallery();
+    }
   }
 
   Future<void> _create() async {
@@ -100,16 +127,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       }
     }
 
-    final ScanResult? result =
-        await controller.build(metered: !signedIn);
+    final ScanResult? result = await controller.build(metered: !signedIn);
 
     if (!mounted) {
       return;
     }
 
     if (result == null) {
-      final Object? error = ref.read(scanControllerProvider).error;
-      _showError(error);
+      _showError(ref.read(scanControllerProvider).error);
       return;
     }
 
@@ -118,18 +143,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   }
 
   void _showError(Object? error) {
-    final String message = switch (error) {
-      ScanPageUnreadable(:final int pageNumber) =>
-        'Page $pageNumber could not be read. Remove it and try again.',
-      ScanQuotaExhausted() =>
-        'You have used all ${AppConfig.freeScanPdfs} free PDFs.',
-      null => 'The PDF could not be created.',
-      _ => 'The PDF could not be created. Please try again.',
-    };
-
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(SnackBar(content: Text(describeScanError(error))));
   }
 
   Future<void> _confirmDiscard() async {
@@ -159,15 +175,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     final ScanState scan = ref.watch(scanControllerProvider);
-    final ScanController controller = ref.read(scanControllerProvider.notifier);
     final bool signedIn = ref.watch(tokenStoreProvider).hasSession;
     final AsyncValue<int> left = ref.watch(freeScansLeftProvider);
 
-    return PopScope<void>(
+    return PopScope(
       // The pages only exist in memory; a swipe back with six captures taken
       // and no warning is the kind of loss a user does not forgive.
       canPop: scan.isEmpty,
-      onPopInvokedWithResult: (bool didPop, void _) {
+      onPopInvokedWithResult: (bool didPop, Object? result) {
         if (!didPop) {
           _confirmDiscard();
         }
@@ -188,13 +203,13 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   busy: scan.isBusy,
                   signedIn: signedIn,
                   freeLeft: left.valueOrNull,
-                  onCamera: controller.addFromCamera,
-                  onGallery: controller.addFromGallery,
+                  error: scan.error,
+                  onCamera: () => _start(ScanSource.camera),
+                  onGallery: () => _start(ScanSource.gallery),
                 )
-              : _PageGrid(
+              : _PageList(
                   scan: scan,
-                  controller: controller,
-                  onAdd: () => _showAddSheet(controller),
+                  onAdd: _showAddSheet,
                 ),
         ),
         bottomNavigationBar: scan.isEmpty
@@ -209,7 +224,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     );
   }
 
-  Future<void> _showAddSheet(ScanController controller) async {
+  Future<void> _showAddSheet() async {
     final ScanSource? source = await showModalBottomSheet<ScanSource>(
       context: context,
       builder: (BuildContext ctx) => SafeArea(
@@ -233,15 +248,29 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       ),
     );
 
-    switch (source) {
-      case ScanSource.camera:
-        await controller.addFromCamera();
-      case ScanSource.gallery:
-        await controller.addFromGallery();
-      case null:
-        break;
+    if (source != null && mounted) {
+      _start(source);
     }
   }
+}
+
+/// Turns anything the scanner can throw into one sentence a user can act on.
+///
+/// Public because three places show it — the snack bar, the empty state and the
+/// page list — and three slightly different wordings for the same failure is
+/// how a support conversation becomes unanswerable.
+String describeScanError(Object? error) {
+  return switch (error) {
+    ScanPageUnreadable(:final int pageNumber) =>
+      'Page $pageNumber could not be read. Remove it and try again.',
+    ScanQuotaExhausted() =>
+      'You have used all ${AppConfig.freeScanPdfs} free PDFs.',
+    ScanTooManyPages(:final int limit) =>
+      'A PDF can hold $limit pages. The extra images were not added.',
+    ScanPickerFailed(:final String detail) => detail,
+    null => 'Something went wrong.',
+    _ => 'That did not work. Please try again.',
+  };
 }
 
 /// The first screen of a scan: pick a source.
@@ -250,6 +279,7 @@ class _EmptyScan extends StatelessWidget {
     required this.busy,
     required this.signedIn,
     required this.freeLeft,
+    required this.error,
     required this.onCamera,
     required this.onGallery,
   });
@@ -257,6 +287,7 @@ class _EmptyScan extends StatelessWidget {
   final bool busy;
   final bool signedIn;
   final int? freeLeft;
+  final Object? error;
   final VoidCallback onCamera;
   final VoidCallback onGallery;
 
@@ -273,8 +304,16 @@ class _EmptyScan extends StatelessWidget {
           'Everything happens on this phone — nothing is uploaded.',
           style: AppText.body.copyWith(color: AppColors.inkMuted),
         ),
-        const SizedBox(height: AppSpacing.xxl),
 
+        if (error != null) ...<Widget>[
+          const SizedBox(height: AppSpacing.lg),
+          InlineNotice(
+            tone: NoticeTone.warn,
+            message: describeScanError(error),
+          ),
+        ],
+
+        const SizedBox(height: AppSpacing.xxl),
         _SourceCard(
           icon: Icons.photo_camera_rounded,
           title: 'Take a photo',
@@ -344,9 +383,7 @@ class _SourceCard extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpacing.xl),
             decoration: BoxDecoration(
               borderRadius: AppRadius.cardAll,
-              border: primary
-                  ? null
-                  : Border.all(color: AppColors.border),
+              border: primary ? null : Border.all(color: AppColors.border),
             ),
             child: Row(
               children: <Widget>[
@@ -397,124 +434,75 @@ class _SourceCard extends StatelessWidget {
   }
 }
 
-/// The captured pages, reorderable.
-class _PageGrid extends StatelessWidget {
-  const _PageGrid({
-    required this.scan,
-    required this.controller,
-    required this.onAdd,
-  });
+/// The captured pages.
+///
+/// A plain [ListView.builder]. The last row is the "Add page" button rather
+/// than a separate footer slot, so there is exactly one scrollable and no
+/// index bookkeeping between two of them.
+class _PageList extends ConsumerWidget {
+  const _PageList({required this.scan, required this.onAdd});
 
   final ScanState scan;
-  final ScanController controller;
   final VoidCallback onAdd;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        if (scan.error is ScanTooManyPages)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.page,
-              AppSpacing.md,
-              AppSpacing.page,
-              0,
-            ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ScanController controller = ref.read(scanControllerProvider.notifier);
+    final bool full = scan.pageCount >= ScanController.maxPages;
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.page,
+        AppSpacing.md,
+        AppSpacing.page,
+        AppSpacing.md,
+      ),
+      // +1 for the trailing "Add page" row, +1 for the notice when there is one.
+      itemCount: scan.pageCount + (scan.error != null ? 2 : 1),
+      itemBuilder: (BuildContext context, int i) {
+        final int offset = scan.error != null ? 1 : 0;
+
+        if (offset == 1 && i == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: InlineNotice(
               tone: NoticeTone.warn,
-              message: 'A PDF can hold ${ScanController.maxPages} pages. '
-                  'The extra images were not added.',
+              message: describeScanError(scan.error),
             ),
-          ),
-        Expanded(
-          // ReorderableListView rather than a grid: dragging to reorder in a
-          // wrapping grid needs a custom drag target per cell, and a scan is a
-          // sequence — page 4 goes after page 3, not "somewhere on row two".
-          child: ReorderableListView.builder(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.page,
-              AppSpacing.md,
-              AppSpacing.page,
-              AppSpacing.md,
-            ),
-            itemCount: scan.pageCount,
-            onReorder: controller.reorder,
-            proxyDecorator: (Widget child, int index, Animation<double> a) =>
-                Material(
-              color: Colors.transparent,
-              elevation: 8,
-              borderRadius: AppRadius.cardAll,
-              shadowColor: AppColors.forest.withValues(alpha: 0.4),
-              child: child,
-            ),
-            footer: Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.md),
-              child: _AddPageTile(
-                enabled: !scan.isBusy && scan.pageCount < ScanController.maxPages,
-                full: scan.pageCount >= ScanController.maxPages,
-                onTap: onAdd,
+          );
+        }
+
+        final int index = i - offset;
+
+        if (index >= scan.pageCount) {
+          return Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: OutlinedButton.icon(
+              onPressed: (scan.isBusy || full) ? null : onAdd,
+              icon: Icon(full ? Icons.block_rounded : Icons.add_rounded,
+                  size: 20),
+              label: Text(
+                full ? 'Maximum ${ScanController.maxPages} pages' : 'Add page',
               ),
             ),
-            itemBuilder: (BuildContext context, int i) => Padding(
-              key: ValueKey<String>(scan.pages[i].id),
-              padding: const EdgeInsets.only(bottom: AppSpacing.md),
-              child: ScanPageTile(
-                page: scan.pages[i],
-                index: i,
-                onRemove: () => controller.removeAt(i),
-              ),
-            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: ScanPageTile(
+            key: ValueKey<String>(scan.pages[index].id),
+            page: scan.pages[index],
+            index: index,
+            total: scan.pageCount,
+            onRemove: () => controller.removeAt(index),
+            onMoveUp: index == 0 ? null : () => controller.moveUp(index),
+            onMoveDown: index == scan.pageCount - 1
+                ? null
+                : () => controller.moveDown(index),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AddPageTile extends StatelessWidget {
-  const _AddPageTile({
-    required this.enabled,
-    required this.full,
-    required this.onTap,
-  });
-
-  final bool enabled;
-  final bool full;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: AppRadius.cardAll,
-        onTap: enabled ? onTap : null,
-        child: DottedOutline(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(
-                  full ? Icons.block_rounded : Icons.add_rounded,
-                  size: 20,
-                  color: enabled ? AppColors.brandDeep : AppColors.inkFaint,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  full
-                      ? 'Maximum ${ScanController.maxPages} pages'
-                      : 'Add page',
-                  style: AppText.bodyStrong.copyWith(
-                    color: enabled ? AppColors.brandDeep : AppColors.inkFaint,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -592,56 +580,4 @@ class _CreateBar extends StatelessWidget {
       ),
     );
   }
-}
-
-/// A dashed border, drawn rather than imported.
-///
-/// Flutter has no dashed border, and the usual answer is a package. One
-/// painter is cheaper than a dependency for a single decorative outline.
-class DottedOutline extends StatelessWidget {
-  const DottedOutline({required this.child, super.key});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DashPainter(),
-      child: child,
-    );
-  }
-}
-
-class _DashPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = AppColors.borderStrong
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-
-    final Path outline = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(0.7, 0.7, size.width - 1.4, size.height - 1.4),
-          const Radius.circular(AppRadius.card),
-        ),
-      );
-
-    const double dash = 6;
-    const double gap = 5;
-    for (final PathMetric metric in outline.computeMetrics()) {
-      double d = 0;
-      while (d < metric.length) {
-        canvas.drawPath(
-          metric.extractPath(d, (d + dash).clamp(0.0, metric.length)),
-          paint,
-        );
-        d += dash + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashPainter old) => false;
 }

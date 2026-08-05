@@ -51,10 +51,35 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 ICONS = os.path.join(ROOT, 'tool', 'native', 'icons')
 
 APP_NAME = 'BankSheet Pro'
+
+# The store identity. It must match, exactly and everywhere:
+#   * MOBILE_GOOGLE_PACKAGE_NAME and MOBILE_APPLE_BUNDLE_ID in the VPS .env
+#   * the package/bundle id registered in Play Console and App Store Connect
+#   * the `aud` of the Play Pub/Sub push subscription
+# `flutter create --org pro.banksheet --project-name banksheet_mobile` produces
+# `pro.banksheet.banksheet_mobile` instead, which is why this script overwrites
+# it. Getting this wrong does not fail the build — it fails receipt validation
+# in production, which is a much worse place to find out.
 PACKAGE = 'pro.banksheet.mobile'
+
+# The Kotlin source package, which is NOT the same thing. It is the Java
+# namespace MainActivity.kt lives in, and `flutter create` derives it from the
+# project name. Left alone deliberately: renaming it would move the source file
+# for no benefit, and Android has allowed namespace != applicationId for years.
 KOTLIN_PKG = 'pro.banksheet.banksheet_mobile'
+
 CHANNEL = 'pro.banksheet/incoming_file'
 ADAPTIVE_BG = '#102820'   # AppColors.forest
+
+# Android API levels.
+#   minSdk 24 — Android 7.0. Pdfium (via pdfx), Play Billing 6 and the system
+#               photo picker fallback all want 21+; 24 is where the toolchain
+#               stops needing multidex workarounds. Covers ~97% of active
+#               devices. Lower it if you have a reason and re-test the reader.
+#   targetSdk 36 — mandatory for new Play submissions from 31 August 2026.
+MIN_SDK = 24
+TARGET_SDK = 36
+COMPILE_SDK = 36
 
 # The launch screen's colour. Same value as ADAPTIVE_BG and as the top-left of
 # the icon's gradient, so the icon appears to expand into the launch screen
@@ -131,21 +156,56 @@ def android(base):
     if 'application/pdf' not in s:
         # Anchored on the LAUNCHER filter's closing tag, which every
         # Flutter-generated manifest has exactly once.
+        #
+        # Three VIEW filters, not one, because "which app can open this PDF" is
+        # decided by whatever the *sending* app puts in the intent, and file
+        # managers disagree wildly:
+        #
+        #   1. mimeType application/pdf — the correct case, and what a
+        #      well-behaved file manager or mail client sends.
+        #   2. mimeType application/octet-stream or */* with a .pdf path — what
+        #      a great many Android file managers actually send, because they
+        #      never resolved the type. Without this filter the app is simply
+        #      absent from their chooser, which is exactly the symptom of
+        #      "I don't see BankSheet Pro in the list".
+        #   3. http/https links ending in .pdf — a PDF tapped in a browser.
+        #
+        # Path patterns need the doubled-escape form: in an intent filter, `\\.`
+        # is a literal dot and `.*` is any run of characters, and Android also
+        # requires the leading `.*` to be repeated to match a path with a dot
+        # earlier in it. This is the documented incantation, not a typo.
         anchor = '</intent-filter>'
         filters = (
             '</intent-filter>\n\n'
-            '                <!-- Makes BankSheet Pro appear in Android\'s "open with"\n'
-            '                     list for a PDF. Without this the app can read PDFs\n'
-            '                     perfectly well and no other app will ever offer it\n'
-            '                     one. BROWSABLE covers a PDF link tapped in a\n'
-            '                     browser; the file:// variant covers older apps and\n'
-            '                     file managers that still hand out raw paths. -->\n'
+            '                <!-- 1. A properly typed PDF. -->\n'
             '                <intent-filter android:label="@string/app_name">\n'
             '                    <action android:name="android.intent.action.VIEW" />\n'
             '                    <category android:name="android.intent.category.DEFAULT" />\n'
             '                    <category android:name="android.intent.category.BROWSABLE" />\n'
             '                    <data android:scheme="content" android:mimeType="application/pdf" />\n'
             '                    <data android:scheme="file" android:mimeType="application/pdf" />\n'
+            '                </intent-filter>\n\n'
+            '                <!-- 2. A file manager that did not resolve the type.\n'
+            '                     Matched on the extension instead. -->\n'
+            '                <intent-filter android:label="@string/app_name">\n'
+            '                    <action android:name="android.intent.action.VIEW" />\n'
+            '                    <category android:name="android.intent.category.DEFAULT" />\n'
+            '                    <category android:name="android.intent.category.BROWSABLE" />\n'
+            '                    <data android:scheme="content" />\n'
+            '                    <data android:scheme="file" />\n'
+            '                    <data android:host="*" />\n'
+            '                    <data android:mimeType="application/octet-stream" />\n'
+            '                    <data android:pathPattern=".*\\\\.pdf" />\n'
+            '                    <data android:pathPattern=".*\\\\..*\\\\.pdf" />\n'
+            '                    <data android:pathPattern=".*\\\\..*\\\\..*\\\\.pdf" />\n'
+            '                </intent-filter>\n\n'
+            '                <!-- 3. A PDF link tapped in a browser. -->\n'
+            '                <intent-filter android:label="@string/app_name">\n'
+            '                    <action android:name="android.intent.action.VIEW" />\n'
+            '                    <category android:name="android.intent.category.DEFAULT" />\n'
+            '                    <category android:name="android.intent.category.BROWSABLE" />\n'
+            '                    <data android:scheme="http" android:host="*" android:pathPattern=".*\\\\.pdf" />\n'
+            '                    <data android:scheme="https" android:host="*" android:pathPattern=".*\\\\.pdf" />\n'
             '                </intent-filter>\n\n'
             '                <!-- "Share -> BankSheet Pro" from any app. -->\n'
             '                <intent-filter android:label="@string/app_name">\n'
@@ -155,7 +215,7 @@ def android(base):
             '                </intent-filter>\n'
         )
         s = s.replace(anchor, filters, 1)
-        _say(ok, 'PDF VIEW + SEND intent filters added')
+        _say(ok, 'PDF VIEW (typed, extension, web) + SEND intent filters added')
 
     _write(manifest, s)
 
@@ -169,6 +229,142 @@ def android(base):
     kt_dir = os.path.join(base, 'app', 'src', 'main', 'kotlin', *KOTLIN_PKG.split('.'))
     _write(os.path.join(kt_dir, 'MainActivity.kt'), MAIN_ACTIVITY)
     _say(ok, 'MainActivity.kt written (content:// -> cache file bridge)')
+
+    # 5. store identity, API levels and release signing
+    android_gradle(base)
+
+
+GRADLE_SIGNING = '''
+// ---------------------------------------------------------------------------
+// Release signing, installed by tool/native/apply.py.
+//
+// The key itself is never in git. Create android/key.properties from
+// android/key.properties.example on the machine that produces store builds:
+//
+//     storePassword=...
+//     keyPassword=...
+//     keyAlias=upload
+//     storeFile=upload-keystore.jks
+//
+// and generate the keystore once with:
+//
+//     keytool -genkey -v -keystore android/app/upload-keystore.jks \\
+//             -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+//
+// When key.properties is absent the release build falls back to the debug key,
+// so `flutter build apk --release` still works for a developer with no key.
+// Play will refuse a debug-signed bundle, which is the correct outcome: a
+// build that cannot be uploaded is better than one that uploads under the
+// wrong identity and can never be updated.
+// ---------------------------------------------------------------------------
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = java.util.Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+'''
+
+GRADLE_SIGNING_CONFIGS = '''    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
+'''
+
+KEY_PROPERTIES_EXAMPLE = '''# Copy to android/key.properties and fill in. NEVER commit the real file —
+# .gitignore already excludes android/key.properties and *.jks.
+#
+# Generate the keystore once, and back it up somewhere you will still have in
+# five years: losing it means you can never update the app on Play under the
+# same listing.
+#
+#   keytool -genkey -v -keystore android/app/upload-keystore.jks \\
+#           -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+storePassword=
+keyPassword=
+keyAlias=upload
+storeFile=app/upload-keystore.jks
+'''
+
+
+def android_gradle(base):
+    """Store identity, API levels and release signing in app/build.gradle.kts.
+
+    `flutter create` writes an applicationId derived from the project name, no
+    release signing config, and whatever minSdk the current Flutter happens to
+    default to. All three are wrong for this app, and all three are silently
+    wrong: the build succeeds and the problem appears at upload time, or worse,
+    in production when Play receipt validation starts rejecting purchases
+    because the package name it was told about does not exist.
+    """
+    gradle = os.path.join(base, 'app', 'build.gradle.kts')
+    if not os.path.exists(gradle):
+        # Groovy-DSL projects predate this script; nothing here is worth
+        # guessing at against a file shape it was not written for.
+        if os.path.exists(os.path.join(base, 'app', 'build.gradle')):
+            _say(warn, 'app/build.gradle is Groovy DSL — set applicationId, '
+                       f'minSdk {MIN_SDK}, targetSdk {TARGET_SDK} and the '
+                       'release signingConfig by hand (README section 9)')
+        else:
+            _say(warn, 'app/build.gradle.kts missing — run `flutter create .` first')
+        return
+
+    s = open(gradle, encoding='utf-8').read()
+    original = s
+
+    s2 = re.sub(r'applicationId\s*=\s*"[^"]*"',
+                f'applicationId = "{PACKAGE}"', s, count=1)
+    if s2 != s:
+        _say(ok, f'applicationId -> {PACKAGE}')
+    s = s2
+
+    # `flutter.minSdkVersion` and friends are Flutter's indirections; replacing
+    # them with literals is what pins the app to a level the stores accept
+    # regardless of which Flutter the next machine has installed.
+    for key, value in (('minSdk', MIN_SDK),
+                       ('targetSdk', TARGET_SDK),
+                       ('compileSdk', COMPILE_SDK)):
+        s = re.sub(rf'{key}\s*=\s*[^\n]+', f'{key} = {value}', s, count=1)
+    _say(ok, f'minSdk {MIN_SDK}, targetSdk {TARGET_SDK}, compileSdk {COMPILE_SDK}')
+
+    if 'keystorePropertiesFile' not in s:
+        # Ahead of the `android {` block: the properties are read at
+        # configuration time and referenced from inside it.
+        s = re.sub(r'\nandroid\s*\{', GRADLE_SIGNING + 'android {', s, count=1)
+
+        # signingConfigs must be declared before buildTypes references it.
+        s = re.sub(r'(\n)(\s*)buildTypes\s*\{',
+                   '\n' + GRADLE_SIGNING_CONFIGS + r'\2buildTypes {', s, count=1)
+
+        s = re.sub(
+            r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)',
+            'signingConfig = if (keystorePropertiesFile.exists()) {\n'
+            '                signingConfigs.getByName("release")\n'
+            '            } else {\n'
+            '                // No key on this machine — still builds, but Play\n'
+            '                // will reject the bundle. That is deliberate.\n'
+            '                signingConfigs.getByName("debug")\n'
+            '            }',
+            s, count=1)
+        _say(ok, 'release signing config installed (reads android/key.properties)')
+    else:
+        _say(ok, 'release signing config already present')
+
+    if s != original:
+        _write(gradle, s)
+
+    example = os.path.join(base, 'key.properties.example')
+    if not os.path.exists(example):
+        _write(example, KEY_PROPERTIES_EXAMPLE)
 
 
 def android_launch_screen(res):
@@ -455,6 +651,35 @@ def ios(base):
                       f'<dict>\n\t<key>CFBundleDisplayName</key>\n\t<string>{APP_NAME}</string>', 1)
     _say(ok, f'CFBundleDisplayName -> "{APP_NAME}"')
 
+    # Usage descriptions. iOS does not warn about a missing one — it kills the
+    # app the instant the API is touched, with a crash log naming the key. The
+    # scanner opens the camera on its very first screen, so without
+    # NSCameraUsageDescription the headline feature terminates the process on
+    # first tap, on a reviewer's device.
+    for key, value in (
+        ('NSCameraUsageDescription',
+         'BankSheet Pro uses the camera to photograph document pages and turn '
+         'them into a PDF.'),
+        ('NSPhotoLibraryUsageDescription',
+         'BankSheet Pro turns photos you choose into PDF pages.'),
+        ('NSPhotoLibraryAddUsageDescription',
+         'BankSheet Pro can save a PDF you created back to your device.'),
+    ):
+        if f'<key>{key}</key>' not in s:
+            s = s.replace(
+                '</dict>\n</plist>',
+                f'\t<key>{key}</key>\n\t<string>{value}</string>\n</dict>\n</plist>',
+                1)
+    _say(ok, 'camera and photo-library usage descriptions present')
+
+    # Declaring this is what skips the export-compliance questionnaire on every
+    # single upload. The app uses HTTPS and nothing else, so it is accurate.
+    if 'ITSAppUsesNonExemptEncryption' not in s:
+        s = s.replace(
+            '</dict>\n</plist>',
+            '\t<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>\n</dict>\n</plist>',
+            1)
+
     if 'CFBundleDocumentTypes' not in s:
         doc = (
             '\t<key>CFBundleDocumentTypes</key>\n'
@@ -477,6 +702,71 @@ def ios(base):
         _say(ok, 'PDF document type registered')
 
     _write(plist, s)
+
+    ios_bundle_id(base)
+    ios_podfile(base)
+
+
+def ios_bundle_id(base):
+    """PRODUCT_BUNDLE_IDENTIFIER -> the store identity, in every configuration.
+
+    `flutter create --org pro.banksheet` writes `pro.banksheet.banksheetMobile`
+    — camel-cased, and not what App Store Connect knows this app as. The value
+    appears once per build configuration plus once per test target, so this
+    replaces the base string rather than matching each line, which also fixes
+    `<base>.RunnerTests` for free.
+    """
+    pbx = os.path.join(base, 'Runner.xcodeproj', 'project.pbxproj')
+    if not os.path.exists(pbx):
+        _say(warn, 'Runner.xcodeproj missing — skipping bundle identifier')
+        return
+
+    s = open(pbx, encoding='utf-8').read()
+    ids = {i.strip() for i in
+           re.findall(r'PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);', s)}
+    bases = {i for i in ids
+             if not i.endswith(('.RunnerTests', '.RunnerUITests')) and '$' not in i}
+
+    if bases == {PACKAGE}:
+        _say(ok, f'bundle identifier already {PACKAGE}')
+        return
+    if not bases:
+        _say(warn, 'bundle identifier is a build variable — set it in Xcode')
+        return
+
+    for old in sorted(bases):
+        if old != PACKAGE:
+            s = s.replace(old, PACKAGE)
+
+    _write(pbx, s)
+    _say(ok, f'bundle identifier -> {PACKAGE}')
+
+
+def ios_podfile(base):
+    """The deployment-target floor.
+
+    StoreKit 2 — which `in_app_purchase` uses on iOS — needs 15.0, and pdfx
+    leans on PDFKit APIs that assume it. Flutter's generated Podfile leaves the
+    platform line commented out, which resolves to whatever the installed
+    CocoaPods defaults to; on a machine with an older default `pod install`
+    succeeds and the StoreKit calls fail at runtime instead.
+    """
+    podfile = os.path.join(base, 'Podfile')
+    if not os.path.exists(podfile):
+        _say(warn, 'Podfile missing — run `flutter create .` first')
+        return
+
+    s = open(podfile, encoding='utf-8').read()
+    if re.search(r"^platform :ios, '15\.0'", s, re.M):
+        _say(ok, 'Podfile already targets iOS 15.0')
+        return
+
+    s2 = re.sub(r'^#?\s*platform :ios,.*$', "platform :ios, '15.0'", s,
+                count=1, flags=re.M)
+    if s2 == s:
+        s2 = "platform :ios, '15.0'\n" + s
+    _write(podfile, s2)
+    _say(ok, 'Podfile platform -> iOS 15.0 (StoreKit 2)')
 
 
 LAUNCH_STORYBOARD = '''<?xml version="1.0" encoding="UTF-8"?>

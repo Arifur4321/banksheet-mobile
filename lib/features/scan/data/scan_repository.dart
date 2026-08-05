@@ -42,6 +42,19 @@ class ScanPageUnreadable implements Exception {
   final int pageNumber;
 }
 
+/// The platform picker refused, and said why.
+///
+/// Carries a message fit to show the user rather than a `PlatformException`
+/// dump: "camera_access_denied" on screen is a bug report, not an explanation.
+class ScanPickerFailed implements Exception {
+  const ScanPickerFailed(this.detail);
+
+  final String detail;
+
+  @override
+  String toString() => 'ScanPickerFailed($detail)';
+}
+
 /// The user has spent the install's free PDFs.
 ///
 /// Thrown rather than returned so it cannot be ignored at a call site: the one
@@ -134,6 +147,62 @@ class ScanRepository {
       capturedAt: now,
       source: kind,
     );
+  }
+
+  /// Claims a capture Android threw away, and returns it as pages.
+  ///
+  /// **This is the fix for "I took a photo and nothing happened."** The camera
+  /// is a separate app in a separate process. While it is in the foreground
+  /// Android is free to kill this one — and on a mid-range phone with a large
+  /// app open it routinely does. The photo was still taken and is sitting in
+  /// the picker's cache; `pickImage`'s future, however, belongs to a process
+  /// that no longer exists, so it never completes and the app comes back to an
+  /// empty scan with no error and nothing to retry.
+  ///
+  /// `retrieveLostData` is the platform channel's answer to exactly that, and
+  /// it is Android-only — on iOS the response is always empty, which is why
+  /// this is safe to call unconditionally on resume.
+  ///
+  /// Returns an empty list when there is nothing to claim, which is the normal
+  /// case; callers should not treat that as a failure.
+  Future<List<ScanPage>> recoverLostCaptures() async {
+    late final LostDataResponse lost;
+    try {
+      lost = await _picker.retrieveLostData();
+    } on Object catch (e) {
+      // A platform that does not implement the call is not an error worth
+      // surfacing — there is simply nothing to recover.
+      Log.debug('retrieveLostData unavailable: $e');
+      return const <ScanPage>[];
+    }
+
+    if (lost.isEmpty) {
+      return const <ScanPage>[];
+    }
+
+    if (lost.exception != null) {
+      Log.warn('Lost capture carried an error: ${lost.exception}');
+      return const <ScanPage>[];
+    }
+
+    final List<XFile> files = lost.files ??
+        <XFile>[if (lost.file != null) lost.file!];
+    if (files.isEmpty) {
+      return const <ScanPage>[];
+    }
+
+    Log.info('Recovered ${files.length} capture(s) the OS had discarded');
+
+    final DateTime now = DateTime.now();
+    return <ScanPage>[
+      for (int i = 0; i < files.length; i++)
+        ScanPage(
+          id: _mintId(now, i),
+          path: files[i].path,
+          capturedAt: now,
+          source: ScanSource.camera,
+        ),
+    ];
   }
 
   // -------------------------------------------------------------- quota
