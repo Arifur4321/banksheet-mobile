@@ -77,6 +77,27 @@ abstract final class AppConfig {
   static const String googleManageUrl =
       'https://play.google.com/store/account/subscriptions';
 
+  // ----------------------------------------------------------------- launch
+  /// The floor on how long the animated launch screen stays up.
+  ///
+  /// Restoring the keychain usually takes tens of milliseconds, so without a
+  /// floor the launch animation would be replaced mid-first-loop and read as a
+  /// flicker. One loop of `PdfLoaderScene` is 2.4s; 1.6s lands just after the
+  /// pages have stacked and the badge has popped, which is the frame worth
+  /// cutting on. See `SplashHold` in `core/providers.dart`.
+  static const Duration minimumSplash = Duration(milliseconds: 1600);
+
+  // ------------------------------------------------------------------- scan
+  /// How many PDFs the scanner produces before asking for an account.
+  ///
+  /// Matches `GUEST_CONVERSION_LIMIT` on the website
+  /// (`config/document-conversion.php`), so somebody who tried the web tool and
+  /// then installed the app meets the same offer twice rather than two
+  /// different ones.
+  ///
+  /// Counted per install and never reset — see `LocalDb.installUsed`.
+  static const int freeScanPdfs = 3;
+
   // ----------------------------------------------------------------- limits
   /// Mirrors `DocumentController`'s `max:20480` rule on the server. Checked on
   /// device so an oversized file fails instantly instead of after a long upload.

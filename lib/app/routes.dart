@@ -26,6 +26,14 @@ abstract final class AppRoute {
   static const String dashboard = 'dashboard';
   static const String dashboardPath = '/dashboard';
 
+  /// The signed-in landing screen: the two primary actions plus recents.
+  ///
+  /// Replaced the old `/viewer` guest landing page, which is gone — a
+  /// signed-out user now gets the welcome screen and its two action buttons
+  /// instead of a second screen making the same argument.
+  static const String home = 'home';
+  static const String homePath = '/home';
+
   static const String documents = 'documents';
   static const String documentsPath = '/documents';
 
@@ -120,13 +128,26 @@ abstract final class AppRoute {
   static const String aboutPath = '/settings/about';
 
   // ----------------------------------------------------------------- viewer
-  /// The reader tab, and the landing screen for a signed-out user.
-  static const String viewer = 'viewer';
-  static const String viewerPath = '/viewer';
+  //
+  // There is no `/viewer` landing route any more, only the reader itself. The
+  // path is kept under `/viewer/` rather than moved so that any PDF link or
+  // saved state already pointing at `/viewer/read` still resolves.
 
-  /// The reader itself. Takes `?path=` and `?title=` as query parameters
-  /// rather than path segments, because a filesystem path contains slashes and
-  /// would otherwise be parsed as extra route segments.
+  /// The reader. Takes `?path=` and `?title=` as query parameters rather than
+  /// path segments, because a filesystem path contains slashes and would
+  /// otherwise be parsed as extra route segments.
+  ///
+  /// Open to a signed-out user: it renders a file the phone already holds and
+  /// makes no authenticated call.
   static const String pdfView = 'pdf-view';
   static const String pdfViewPath = '/viewer/read';
+
+  // ------------------------------------------------------------------- scan
+  /// Photos to a PDF, on the device. Also open to a signed-out user, metered
+  /// by [AppConfig.freeScanPdfs] rather than by a session.
+  ///
+  /// Takes an optional `?source=camera|gallery` so the caller can open straight
+  /// into a picker instead of landing on a chooser.
+  static const String scan = 'scan';
+  static const String scanPath = '/scan';
 }

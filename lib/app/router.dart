@@ -6,11 +6,13 @@
 /// where they belong. No screen ever pushes the login page imperatively, so
 /// there is exactly one place that can get sign-in wrong.
 ///
-/// **What a signed-out user may reach.** v1 leads with the reader, so the
-/// viewer routes are in [_guestPaths] and open with no account. Everything else
-/// still requires a session. The gate is a deny-list turned inside out: a new
-/// route is private unless someone deliberately adds it to that set, which is
-/// the right default for a product holding other people's bank statements.
+/// **What a signed-out user may reach.** Two things, both in [_guestPaths]: the
+/// reader and the scanner. Both operate entirely on files already on the user's
+/// own phone and make no authenticated call, which is the test for being on
+/// that list. Everything else still requires a session. The gate is a deny-list
+/// turned inside out: a new route is private unless someone deliberately adds
+/// it, which is the right default for a product holding other people's bank
+/// statements.
 ///
 /// **What exists at all.** Routes the v1 [Features] flags turn off are not
 /// registered, so a stale deep link lands on the error page rather than on a
@@ -25,7 +27,6 @@ import 'package:go_router/go_router.dart';
 import '../core/config/feature_flags.dart';
 import '../core/network/token_store.dart';
 import '../core/providers.dart';
-import '../core/storage/prefs.dart';
 import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
@@ -38,10 +39,13 @@ import '../features/documents/presentation/document_detail_screen.dart';
 import '../features/documents/presentation/document_upload_screen.dart';
 import '../features/documents/presentation/documents_screen.dart';
 import '../features/exports/presentation/exports_screen.dart';
+import '../features/home/presentation/home_screen.dart';
 import '../features/more/presentation/more_screen.dart';
 import '../features/profiles/presentation/profile_detail_screen.dart';
 import '../features/profiles/presentation/profiles_screen.dart';
 import '../features/review/presentation/review_screen.dart';
+import '../features/scan/domain/scan_page.dart';
+import '../features/scan/presentation/scan_screen.dart';
 import '../features/settings/presentation/about_screen.dart';
 import '../features/settings/presentation/api_keys_screen.dart';
 import '../features/settings/presentation/change_password_screen.dart';
@@ -57,7 +61,6 @@ import '../features/tools/presentation/conversions_screen.dart';
 import '../features/tools/presentation/tool_run_screen.dart';
 import '../features/tools/presentation/tools_screen.dart';
 import '../features/viewer/presentation/pdf_viewer_screen.dart';
-import '../features/viewer/presentation/viewer_home_screen.dart';
 import '../features/web_extraction/presentation/web_extraction_create_screen.dart';
 import '../features/web_extraction/presentation/web_extraction_detail_screen.dart';
 import '../features/web_extraction/presentation/web_extraction_results_screen.dart';
@@ -74,12 +77,13 @@ final GlobalKey<NavigatorState> _shellKey = GlobalKey<NavigatorState>(
 
 /// Reachable with no session at all.
 ///
-/// Keep this list short and justify every addition. The reader is here because
-/// it operates entirely on files the user already has on their own phone — it
-/// makes no authenticated call and reads nothing from the workspace.
+/// Keep this list short and justify every addition. Both entries operate
+/// entirely on files the user already has on their own phone: they make no
+/// authenticated call and read nothing from the workspace. The scanner is
+/// metered on the device instead — see `AppConfig.freeScanPdfs`.
 const Set<String> _guestPaths = <String>{
-  AppRoute.viewerPath,
   AppRoute.pdfViewPath,
+  AppRoute.scanPath,
 };
 
 /// The auth screens, which a signed-in user should never sit on.
@@ -93,21 +97,24 @@ const Set<String> _publicPaths = <String>{
 
 final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
   final TokenStore tokens = ref.watch(tokenStoreProvider);
-  final Prefs prefs = ref.watch(prefsProvider);
+  final SplashHold splash = ref.watch(splashHoldProvider);
 
   final GoRouter router = GoRouter(
     navigatorKey: _rootKey,
     initialLocation: AppRoute.splashPath,
     // TokenStore is a ChangeNotifier, so signing in or out re-evaluates the
-    // redirect below without any screen having to navigate.
-    refreshListenable: tokens,
+    // redirect below without any screen having to navigate. SplashHold is the
+    // second notifier: it fires once the launch animation's minimum has
+    // elapsed, which is the other thing that can unblock the splash.
+    refreshListenable: Listenable.merge(<Listenable>[tokens, splash]),
     redirect: (BuildContext context, GoRouterState state) {
       final String location = state.matchedLocation;
 
       // Startup: hold on the splash until the refresh token has been read from
-      // the keychain, otherwise the welcome screen flashes for one frame on
-      // every cold start for a signed-in user.
-      if (!tokens.isRestored) {
+      // the keychain — otherwise the welcome screen flashes for one frame on
+      // every cold start for a signed-in user — and until the launch animation
+      // has had its minimum beat, so it reads as a launch rather than a blink.
+      if (!tokens.isRestored || !splash.elapsed) {
         return location == AppRoute.splashPath ? null : AppRoute.splashPath;
       }
 
@@ -117,7 +124,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       );
 
       if (!tokens.hasSession) {
-        // The reader is open to everyone.
+        // The reader and the scanner are open to everyone.
         if (onGuestPage) {
           return null;
         }
@@ -126,18 +133,16 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
           return null;
         }
         // Cold start, or a deep link into the workspace with no session.
-        // Someone who has already seen the pitch goes straight to the reader;
-        // a first-run user sees what the product is first.
-        return prefs.hasOnboarded
-            ? AppRoute.viewerPath
-            : AppRoute.welcomePath;
+        // The welcome screen carries both the pitch and the two actions a
+        // signed-out user can take, so it is the only landing place — there is
+        // no separate guest home to fall through to any more, which is also
+        // why `hasOnboarded` no longer changes the destination.
+        return AppRoute.welcomePath;
       }
 
-      // Signed in but sitting on an auth page — go to the app. The reader is
-      // home for everyone: this is a PDF app that also has a workspace, not a
-      // workspace that also opens PDFs.
+      // Signed in but sitting on an auth page — go to the app.
       if (onPublicPage) {
-        return AppRoute.viewerPath;
+        return AppRoute.homePath;
       }
 
       return null;
@@ -181,6 +186,23 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         ),
       ),
 
+      // The scanner, likewise full screen. It owns a camera, a page list and
+      // its own bottom action bar; a navigation bar underneath all of that
+      // would offer the user a way to walk away from unsaved captures with one
+      // mis-tap.
+      GoRoute(
+        parentNavigatorKey: _rootKey,
+        path: AppRoute.scanPath,
+        name: AppRoute.scan,
+        builder: (_, GoRouterState s) => ScanScreen(
+          startWith: switch (s.uri.queryParameters['source']) {
+            'camera' => ScanSource.camera,
+            'gallery' => ScanSource.gallery,
+            _ => null,
+          },
+        ),
+      ),
+
       // ---------------------------------------------------------- main shell
       ShellRoute(
         navigatorKey: _shellKey,
@@ -188,10 +210,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
             AppShell(child: child),
         routes: <RouteBase>[
           GoRoute(
-            path: AppRoute.viewerPath,
-            name: AppRoute.viewer,
+            path: AppRoute.homePath,
+            name: AppRoute.home,
             pageBuilder: (_, GoRouterState s) =>
-                const NoTransitionPage<void>(child: ViewerHomeScreen()),
+                const NoTransitionPage<void>(child: HomeScreen()),
           ),
           GoRoute(
             path: AppRoute.dashboardPath,
@@ -419,8 +441,12 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
               const Text('That screen does not exist.'),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: () => context.goNamed(AppRoute.viewer),
-                child: const Text('Go to the reader'),
+                // `go` on a path rather than `goNamed`: the home route only
+                // exists behind the auth gate, and a signed-out user landing
+                // here needs the redirect to send them to welcome instead of
+                // the router throwing on an unreachable name.
+                onPressed: () => context.go(AppRoute.homePath),
+                child: const Text('Go to the start'),
               ),
             ],
           ),

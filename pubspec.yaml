@@ -67,6 +67,15 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+  # Runs real SQLite off-device, so `test/scan_test.dart` exercises the actual
+  # migration ladder and the actual upsert in `core/storage/local_db.dart`
+  # instead of a mock that agrees with whatever was written. Test-only — it is
+  # not linked into a release build.
+  #
+  # If `flutter pub get` cannot resolve this against your sqflite version, drop
+  # the constraint to `any` and commit the resolved pubspec.lock.
+  sqflite_common_ffi: ^2.3.4
+
 flutter:
   uses-material-design: true
 

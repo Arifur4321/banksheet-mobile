@@ -31,6 +31,11 @@ abstract final class S {
   static const String newPassword = 'New password';
   static const String fullName = 'Your name';
   static const String workspaceName = 'Workspace name';
+
+  /// The sign-up form's label for the same field. It is optional on the phone —
+  /// left blank, the server names the workspace after the person — and a field
+  /// that says nothing is read as required, so this one says so.
+  static const String workspaceNameOptional = 'Workspace name (optional)';
   static const String workspaceHint = 'Usually your company or practice name';
   static const String forgotPassword = 'Forgot password?';
   static const String resetPassword = 'Reset password';
@@ -55,6 +60,10 @@ abstract final class S {
   static const String haveAccount = 'Already have an account?';
   static const String valueReconciled = 'Reconciled totals, not raw text';
   static const String valuePdfTools = 'Thirteen PDF tools in your pocket';
+
+  /// Not currently rendered. The welcome screen shows two of these three
+  /// bullets, and only on a tall phone — the two action tiles took the space.
+  /// Kept for the store listing copy and for whichever screen wants it next.
   static const String valueEsign = 'Send documents for e-signature';
   static const String termsNotice =
       'By creating an account you agree to the Terms of Service and the '

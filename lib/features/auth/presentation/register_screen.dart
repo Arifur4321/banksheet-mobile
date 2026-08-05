@@ -159,12 +159,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 textCapitalization: TextCapitalization.words,
                 autofillHints: const <String>[AutofillHints.organizationName],
                 decoration: InputDecoration(
-                  labelText: S.workspaceName,
+                  labelText: S.workspaceNameOptional,
                   helperText: S.workspaceHint,
                   errorText: _serverErrors['company_name'],
                   prefixIcon: const Icon(Icons.business_outlined, size: 20),
                 ),
-                validator: _required,
+                // No validator: the workspace name is optional on the phone.
+                // Left blank, the server names the workspace after the person
+                // — a sole trader signing up to keep the PDF they just scanned
+                // should not have to invent a company first.
                 onChanged: (_) => _clearServerErrors(),
                 onFieldSubmitted: (_) => _emailFocus.requestFocus(),
               ),

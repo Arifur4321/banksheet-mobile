@@ -49,20 +49,28 @@ class AuthRepository {
 
   /// `POST /auth/register`.
   ///
-  /// `company_name` is the workspace, and `password_confirmation` is required
-  /// by the server's `confirmed` rule even though the app has already checked
-  /// the two fields match.
+  /// `company_name` is the workspace and is now **optional**. When the user
+  /// leaves it blank the key is omitted from the body entirely rather than sent
+  /// as an empty string: the server's rule is `nullable`, and `''` sails
+  /// straight past `nullable` and lands in `companies.name`. Omitted, the
+  /// server names the workspace after the person — see
+  /// `AuthController::workspaceNameFor()`.
+  ///
+  /// `password_confirmation` is required by the server's `confirmed` rule even
+  /// though the app has already checked the two fields match.
   Future<Session> register({
     required String name,
     required String email,
     required String password,
-    required String workspaceName,
+    String? workspaceName,
     String? locale,
   }) async {
+    final String workspace = (workspaceName ?? '').trim();
+
     final Map<String, dynamic> response = await _api.post(
       Endpoints.register,
       body: <String, dynamic>{
-        'company_name': workspaceName.trim(),
+        if (workspace.isNotEmpty) 'company_name': workspace,
         'name': name.trim(),
         'email': email.trim(),
         'password': password,

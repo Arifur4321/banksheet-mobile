@@ -22,6 +22,14 @@ class Prefs {
   String get locale => _prefs.getString(_kLocale) ?? 'en';
   Future<void> setLocale(String value) => _prefs.setString(_kLocale, value);
 
+  /// Whether this install has been past the welcome screen once.
+  ///
+  /// No longer consulted by the router. It used to send a returning signed-out
+  /// user straight to the guest reader landing page; that page is gone, and the
+  /// welcome screen now carries the two actions it existed for, so there is
+  /// nowhere else to send them. Kept because the key is already written on
+  /// devices in the field and because a "show this once" prompt is the obvious
+  /// next thing to want it for — but nothing reads it today.
   bool get hasOnboarded => _prefs.getBool(_kOnboarded) ?? false;
   Future<void> setOnboarded() => _prefs.setBool(_kOnboarded, true);
 

@@ -20,6 +20,10 @@ WHAT IT DOES
 Android
   * launcher icons at every density, plus the adaptive icon (foreground layer
     and a background colour)
+  * the LAUNCH SCREEN: a branded window background for Android 11 and below,
+    and the Android 12+ splash-screen API above it, so the moment between
+    tapping the icon and Flutter's first frame is brand green with the PDF mark
+    on it rather than the stock white Flutter screen
   * android:label -> "BankSheet Pro"
   * VIEW intent filters for application/pdf over content:// and file://, which
     is what puts the app in the chooser
@@ -30,6 +34,8 @@ Android
 iOS
   * AppIcon set at every size, alpha stripped (an icon with an alpha channel is
     rejected at upload)
+  * LaunchScreen.storyboard + a LaunchImage set — the iOS half of the same
+    launch-screen job
   * CFBundleDisplayName -> "BankSheet Pro"
   * a PDF document type + LSSupportsOpeningDocumentsInPlace, the equivalent of
     the Android intent filter
@@ -49,6 +55,11 @@ PACKAGE = 'pro.banksheet.mobile'
 KOTLIN_PKG = 'pro.banksheet.banksheet_mobile'
 CHANNEL = 'pro.banksheet/incoming_file'
 ADAPTIVE_BG = '#102820'   # AppColors.forest
+
+# The launch screen's colour. Same value as ADAPTIVE_BG and as the top-left of
+# the icon's gradient, so the icon appears to expand into the launch screen
+# instead of cutting to a different green.
+SPLASH_BG = '#102820'     # AppColors.forest
 
 ok, warn = [], []
 
@@ -93,6 +104,9 @@ def android(base):
            f'    <color name="ic_launcher_background">{ADAPTIVE_BG}</color>\n'
            '</resources>\n')
     _say(ok, 'adaptive icon written (foreground + background + monochrome)')
+
+    # 2b. launch screen
+    android_launch_screen(res)
 
     # 3. manifest
     manifest = os.path.join(base, 'app', 'src', 'main', 'AndroidManifest.xml')
@@ -155,6 +169,134 @@ def android(base):
     kt_dir = os.path.join(base, 'app', 'src', 'main', 'kotlin', *KOTLIN_PKG.split('.'))
     _write(os.path.join(kt_dir, 'MainActivity.kt'), MAIN_ACTIVITY)
     _say(ok, 'MainActivity.kt written (content:// -> cache file bridge)')
+
+
+def android_launch_screen(res):
+    """The branded launch screen, on both sides of the Android 12 divide.
+
+    Two different mechanisms, and shipping only one of them is why an app looks
+    right on the maintainer's phone and wrong on the tester's:
+
+    **Android 11 and below** draw `android:windowBackground` from the activity's
+    theme while the process starts. Flutter's generated `launch_background.xml`
+    is a plain white colour, which is the stock screen this replaces.
+
+    **Android 12 and above (API 31+)** ignore that entirely and run the platform
+    splash-screen API instead. It is not optional and it cannot be turned off:
+    if you do not configure it you get the launcher icon on the system window
+    background, which on most devices is white. So `values-v31/styles.xml`
+    below sets the brand colour and a purpose-built icon asset.
+
+    A note on the v31 icon: the platform masks it to a circle and only the inner
+    two thirds survive, which is why `make_icons.py` draws a small glyph on a
+    large transparent canvas for that one file rather than reusing the launcher
+    icon.
+    """
+    # 1. the logo bitmaps, one per density
+    installed = 0
+    for density in ('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'):
+        src = os.path.join(ICONS, f'android_{density}_splash_logo.png')
+        if not os.path.exists(src):
+            continue
+        dst = os.path.join(res, f'drawable-{density}')
+        os.makedirs(dst, exist_ok=True)
+        shutil.copyfile(src, os.path.join(dst, 'splash_logo.png'))
+        installed += 1
+
+    v31_src = os.path.join(ICONS, 'android_splash_icon_v31.png')
+    if os.path.exists(v31_src):
+        dst = os.path.join(res, 'drawable-nodpi')
+        os.makedirs(dst, exist_ok=True)
+        shutil.copyfile(v31_src, os.path.join(dst, 'splash_icon.png'))
+
+    if installed == 0:
+        _say(warn, 'splash logos missing — run `python3 tool/native/make_icons.py`')
+        return
+
+    # 2. colours. Kept in their own file rather than appended to an existing
+    #    one, so re-running this script cannot duplicate a resource name.
+    _write(os.path.join(res, 'values', 'splash_colors.xml'),
+           '<?xml version="1.0" encoding="utf-8"?>\n'
+           '<resources>\n'
+           f'    <color name="brand_splash">{SPLASH_BG}</color>\n'
+           '</resources>\n')
+
+    # 3. the pre-12 window background, light and dark. Both are the dark brand
+    #    green: this screen is a brand moment, not a surface that follows the
+    #    system theme, and a white flash before a dark app is the exact jolt
+    #    the launch screen exists to remove.
+    layer = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<!-- Drawn by the window manager before Flutter has an engine. Keep it\n'
+        '     to a colour and one bitmap: anything that needs inflating costs\n'
+        '     time on precisely the low-end devices this is meant to help. -->\n'
+        '<layer-list xmlns:android="http://schemas.android.com/apk/res/android">\n'
+        '    <item android:drawable="@color/brand_splash" />\n'
+        '    <item>\n'
+        '        <bitmap\n'
+        '            android:gravity="center"\n'
+        '            android:src="@drawable/splash_logo" />\n'
+        '    </item>\n'
+        '</layer-list>\n'
+    )
+    for folder in ('drawable', 'drawable-v21', 'drawable-night', 'drawable-night-v21'):
+        _write(os.path.join(res, folder, 'launch_background.xml'), layer)
+
+    # 4. themes. LaunchTheme is what the activity wears until Flutter swaps it
+    #    for NormalTheme; both are declared here so a `flutter create` that
+    #    wrote a white default is fully overwritten rather than half-patched.
+    styles = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<resources>\n'
+        '    <!-- Shown from the moment the icon is tapped until Flutter renders\n'
+        '         its first frame. `windowFullscreen=false` matters: a launch\n'
+        '         screen that hides the status bar makes the bar appear a beat\n'
+        '         later, and the whole page jumps. -->\n'
+        '    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">\n'
+        '        <item name="android:windowBackground">@drawable/launch_background</item>\n'
+        '        <item name="android:windowFullscreen">false</item>\n'
+        f'        <item name="android:statusBarColor">{SPLASH_BG}</item>\n'
+        f'        <item name="android:navigationBarColor">{SPLASH_BG}</item>\n'
+        '        <item name="android:windowLightStatusBar">false</item>\n'
+        '    </style>\n'
+        '\n'
+        '    <!-- Applied the instant the first frame is up. Flutter paints its\n'
+        '         own background from here on; this colour only shows during a\n'
+        '         route transition. -->\n'
+        '    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">\n'
+        '        <item name="android:windowBackground">?android:colorBackground</item>\n'
+        '    </style>\n'
+        '</resources>\n'
+    )
+    _write(os.path.join(res, 'values', 'styles.xml'), styles)
+    _write(os.path.join(res, 'values-night', 'styles.xml'), styles)
+
+    # 5. Android 12+. `windowSplashScreenAnimatedIcon` accepts a static drawable
+    #    as well as an AnimatedVectorDrawable; a still mark that hands over to
+    #    the app's own animation reads better than two animations back to back.
+    _write(os.path.join(res, 'values-v31', 'styles.xml'),
+           '<?xml version="1.0" encoding="utf-8"?>\n'
+           '<resources>\n'
+           '    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">\n'
+           '        <item name="android:windowSplashScreenBackground">'
+           '@color/brand_splash</item>\n'
+           '        <item name="android:windowSplashScreenAnimatedIcon">'
+           '@drawable/splash_icon</item>\n'
+           '        <item name="android:windowSplashScreenIconBackgroundColor">'
+           '@color/brand_splash</item>\n'
+           '        <item name="android:windowLayoutInDisplayCutoutMode">'
+           'shortEdges</item>\n'
+           '        <!-- Still consumed on 12+ for the window behind the splash. -->\n'
+           '        <item name="android:windowBackground">@drawable/launch_background</item>\n'
+           '        <item name="android:windowFullscreen">false</item>\n'
+           '    </style>\n'
+           '\n'
+           '    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">\n'
+           '        <item name="android:windowBackground">?android:colorBackground</item>\n'
+           '    </style>\n'
+           '</resources>\n')
+
+    _say(ok, f'launch screen installed ({installed} densities + Android 12 splash API)')
 
 
 MAIN_ACTIVITY = '''package ''' + KOTLIN_PKG + '''
@@ -297,6 +439,8 @@ def ios(base):
         {'images': images, 'info': {'version': 1, 'author': 'xcode'}}, indent=2) + '\n')
     _say(ok, f'iOS AppIcon set written ({len(images)} entries)')
 
+    ios_launch_screen(base)
+
     plist = os.path.join(base, 'Runner', 'Info.plist')
     if not os.path.exists(plist):
         _say(warn, 'Info.plist missing — skipping iOS name and document type')
@@ -333,6 +477,92 @@ def ios(base):
         _say(ok, 'PDF document type registered')
 
     _write(plist, s)
+
+
+LAUNCH_STORYBOARD = '''<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BankSheet Pro launch screen.
+
+  iOS renders this before the app has run a line of code, so it is a storyboard
+  and not a view: nothing here can be computed. The background colour is the
+  literal sRGB of AppColors.forest (#102820) because a storyboard cannot read a
+  colour from anywhere else, and the image is centred with fixed 120pt sides so
+  it lands identically from an SE to a Pro Max.
+
+  Keep this in sync with SPLASH_BG in tool/native/apply.py.
+-->
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="22505" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22504"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+    </dependencies>
+    <scenes>
+        <scene sceneID="EHf-IW-A2E">
+            <objects>
+                <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="YRO-k0-Ey4">
+                                <rect key="frame" x="136.5" y="366" width="120" height="120"/>
+                            </imageView>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
+                        <color key="backgroundColor" red="0.062745098" green="0.156862745" blue="0.125490196" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <constraint firstItem="YRO-k0-Ey4" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="cX0-00-001"/>
+                            <constraint firstItem="YRO-k0-Ey4" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="cY0-00-002"/>
+                            <constraint firstAttribute="width" secondItem="YRO-k0-Ey4" secondAttribute="width" id="wW0-00-003" constant="0.0"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="53" y="375"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="LaunchImage" width="120" height="120"/>
+    </resources>
+</document>
+'''
+
+
+def ios_launch_screen(base):
+    """LaunchScreen.storyboard plus the image set it references.
+
+    `flutter create` writes a storyboard containing a white background and the
+    Flutter logo. Replacing it is the iOS half of the Android work above — same
+    green, same mark, so the two platforms launch identically.
+    """
+    imageset = os.path.join(
+        base, 'Runner', 'Assets.xcassets', 'LaunchImage.imageset')
+    if not os.path.isdir(os.path.dirname(imageset)):
+        _say(warn, 'ios/Runner/Assets.xcassets missing — skipping launch screen')
+        return
+
+    os.makedirs(imageset, exist_ok=True)
+    images = []
+    for scale in (1, 2, 3):
+        src = os.path.join(ICONS, f'ios_launch_{scale}x.png')
+        if not os.path.exists(src):
+            continue
+        fname = f'LaunchImage{"" if scale == 1 else f"@{scale}x"}.png'
+        shutil.copyfile(src, os.path.join(imageset, fname))
+        images.append({'idiom': 'universal', 'filename': fname, 'scale': f'{scale}x'})
+
+    if not images:
+        _say(warn, 'iOS launch images missing — run `python3 tool/native/make_icons.py`')
+        return
+
+    _write(os.path.join(imageset, 'Contents.json'), json.dumps(
+        {'images': images, 'info': {'version': 1, 'author': 'xcode'}}, indent=2) + '\n')
+
+    storyboard = os.path.join(
+        base, 'Runner', 'Base.lproj', 'LaunchScreen.storyboard')
+    _write(storyboard, LAUNCH_STORYBOARD)
+    _say(ok, f'iOS launch screen written ({len(images)} scales + storyboard)')
 
 
 def main():

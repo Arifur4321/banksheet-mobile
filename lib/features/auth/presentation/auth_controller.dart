@@ -132,11 +132,15 @@ class AuthController extends StateNotifier<AsyncValue<Session?>> {
   }
 
   /// Creates the account, its workspace and a session in one call.
+  ///
+  /// [workspaceName] is optional: left blank, the server names the workspace
+  /// after the person. The parameter is kept rather than dropped so the field
+  /// can stay on the form for the users who do want to name their practice.
   Future<void> register({
     required String name,
     required String email,
     required String password,
-    required String workspaceName,
+    String? workspaceName,
   }) async {
     state = const AsyncValue<Session?>.loading();
     try {

@@ -8,9 +8,13 @@
 /// synchronously instead of every screen awaiting a future.
 library;
 
+import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'config/app_config.dart';
 import 'network/api_client.dart';
 import 'network/token_store.dart';
 import 'storage/local_db.dart';
@@ -63,6 +67,48 @@ final Provider<ClientIdentity> clientIdentityProvider =
 /// for what it deliberately does not store and why.
 final Provider<LocalDb> localDbProvider =
     Provider<LocalDb>((Ref ref) => ref.watch(bootstrapProvider).localDb);
+
+/// Holds the launch screen open for a minimum beat.
+///
+/// Without this the splash is a flicker. [TokenStore.restore] typically
+/// finishes in tens of milliseconds, so the animated launch scene would be
+/// swapped out before a single loop of it had played — which reads as a glitch,
+/// not as a launch, and is worse than showing no animation at all.
+///
+/// It is a *floor*, never a ceiling: if startup genuinely takes longer than
+/// [AppConfig.minimumSplash], the router keeps waiting on the real work. Padding
+/// a fast start by a fixed amount is a deliberate trade; if it ever needs to go,
+/// set that duration to [Duration.zero] and nothing else changes.
+class SplashHold extends ChangeNotifier {
+  SplashHold(Duration minimum) {
+    if (minimum <= Duration.zero) {
+      _elapsed = true;
+      return;
+    }
+    _timer = Timer(minimum, () {
+      _elapsed = true;
+      notifyListeners();
+    });
+  }
+
+  Timer? _timer;
+  bool _elapsed = false;
+
+  /// True once the floor has passed and the router may leave the splash.
+  bool get elapsed => _elapsed;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+}
+
+final Provider<SplashHold> splashHoldProvider = Provider<SplashHold>((Ref ref) {
+  final SplashHold hold = SplashHold(AppConfig.minimumSplash);
+  ref.onDispose(hold.dispose);
+  return hold;
+});
 
 /// Raised when the session ends for any reason — an expired refresh token, a
 /// revoked device, or the user tapping sign out. The router listens and sends

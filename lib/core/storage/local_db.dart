@@ -1,11 +1,14 @@
 /// The on-device SQLite database.
 ///
-/// Two jobs, and deliberately no third:
+/// Three jobs, and deliberately no fourth:
 ///
 ///   1. **Recent files** for the reader, so opening the app shows what you were
 ///      last looking at instead of an empty picker.
 ///   2. **Guest usage counters**, so a signed-out user can be told they have
 ///      reached the free ceiling before the app asks them to create an account.
+///   3. **Per-install counters** — the scanner's free-PDF allowance, spent once
+///      per install rather than per month. See [InstallMeter] for why that one
+///      lives in its own table and survives [LocalDb.wipeAll].
 ///
 /// What this database is *not* is a mirror of the server. It holds no
 /// transaction rows, no balances, no IBANs and no file bytes — only paths the
@@ -31,6 +34,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../config/app_config.dart';
 import '../utils/logger.dart';
 
 /// Where a remembered file came from. Kept as a string column rather than an
@@ -107,13 +111,42 @@ enum GuestMeter {
       };
 }
 
+/// An allowance spent **once per install** rather than once per month.
+///
+/// Two things make this a different table from [GuestMeter] rather than a flag
+/// on it, and both are worth stating because a future reader will be tempted to
+/// merge them:
+///
+///   * **It never rolls over.** The scanner's free PDFs are a trial, not a
+///     monthly quota. A counter that resets on the first of the month is not a
+///     trial, it is a free tier — a different product decision, and not this
+///     one.
+///   * **It survives sign-out.** [LocalDb.wipeAll] clears everything that
+///     belongs to a session, and if this went with it, "sign out and back in"
+///     would be a one-tap reset of the trial. Whoever is holding the phone has
+///     had their three PDFs.
+///
+/// It is still **advisory**, exactly like [GuestMeter]: clearing app data or
+/// reinstalling resets it, and that is accepted. Making it tamper-proof means
+/// an anonymous server-side identity for every install, which costs a privacy
+/// disclosure on both stores and buys very little — the wall it guards is a
+/// free registration, not a paid plan.
+enum InstallMeter {
+  /// PDFs produced by the on-device scanner.
+  scanPdf;
+
+  int get freeLimit => switch (this) {
+        InstallMeter.scanPdf => AppConfig.freeScanPdfs,
+      };
+}
+
 class LocalDb {
   LocalDb._(this._db);
 
   final Database _db;
 
   /// Bumped on every schema change. [_migrate] must gain a matching step.
-  static const int _schemaVersion = 1;
+  static const int _schemaVersion = 2;
 
   static const String _fileName = 'banksheet.db';
 
@@ -146,6 +179,29 @@ class LocalDb {
     return LocalDb._(db);
   }
 
+  /// An in-memory database on the same schema, for tests.
+  ///
+  /// It runs the real [_migrate] ladder rather than a hand-written CREATE, so a
+  /// test that passes here is testing the schema that ships. Lives in this file
+  /// rather than in a test helper for exactly that reason: the moment the two
+  /// can drift, they will.
+  ///
+  /// Requires a `databaseFactory` that works off-device — see
+  /// `sqflite_common_ffi` in `dev_dependencies`.
+  static Future<LocalDb> openInMemory() async {
+    final Database db = await databaseFactory.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: _schemaVersion,
+        onConfigure: (Database db) =>
+            db.execute('PRAGMA foreign_keys = ON'),
+        onCreate: (Database db, int version) => _migrate(db, 0, version),
+        onUpgrade: _migrate,
+      ),
+    );
+    return LocalDb._(db);
+  }
+
   /// The migration ladder. Each step moves exactly one version forward, so a
   /// device three versions behind arrives at the same schema as a fresh
   /// install rather than a subtly different one.
@@ -173,7 +229,19 @@ class LocalDb {
       ''');
     }
 
-    // Next schema change adds `if (from < 2) { ... }` here. Never edit a step
+    if (from < 2) {
+      // Per-install counters. No `period_start`: that absence is the whole
+      // point of the table — see [InstallMeter].
+      await db.execute('''
+        CREATE TABLE install_usage (
+          meter      TEXT    PRIMARY KEY,
+          used       INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+    }
+
+    // Next schema change adds `if (from < 3) { ... }` here. Never edit a step
     // that has shipped — a device that already ran it will not run it again.
   }
 
@@ -264,6 +332,50 @@ class LocalDb {
   Future<bool> guestHasQuota(GuestMeter meter) async =>
       await guestUsed(meter) < meter.freeLimit;
 
+  // --------------------------------------------------------- install usage
+
+  /// How many of [meter] this install has ever spent.
+  Future<int> installUsed(InstallMeter meter) async {
+    final List<Map<String, Object?>> rows = await _db.query(
+      'install_usage',
+      where: 'meter = ?',
+      whereArgs: <Object?>[meter.name],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return 0;
+    }
+    return (rows.first['used'] as int?) ?? 0;
+  }
+
+  /// Spends one unit and returns the new total.
+  ///
+  /// Written as a single SQL upsert rather than read-then-write: the scanner
+  /// can finish two PDFs at once if the user taps twice on a fast device, and
+  /// two interleaved read-modify-writes would both read 2 and both write 3.
+  Future<int> bumpInstallUsage(InstallMeter meter) async {
+    await _db.rawInsert(
+      '''
+      INSERT INTO install_usage (meter, used, updated_at)
+           VALUES (?, 1, ?)
+      ON CONFLICT(meter) DO UPDATE SET
+           used = used + 1,
+           updated_at = excluded.updated_at
+      ''',
+      <Object?>[meter.name, DateTime.now().millisecondsSinceEpoch],
+    );
+    return installUsed(meter);
+  }
+
+  /// How many are left, floored at zero.
+  Future<int> installRemaining(InstallMeter meter) async {
+    final int left = meter.freeLimit - await installUsed(meter);
+    return left < 0 ? 0 : left;
+  }
+
+  Future<bool> installHasQuota(InstallMeter meter) async =>
+      await installUsed(meter) < meter.freeLimit;
+
   // ------------------------------------------------------------------ admin
 
   /// Called when the session ends or the signed-in user changes.
@@ -273,10 +385,14 @@ class LocalDb {
   /// Guest counters go too: they belong to whoever was holding the phone, and
   /// carrying them across a sign-in would meter a paying user against the free
   /// tier.
+  ///
+  /// `install_usage` is deliberately NOT cleared. It records what this install
+  /// has spent, not what this session has, and wiping it here would make "sign
+  /// out and back in" a one-tap reset of the scanner's free trial.
   Future<void> wipeAll() async {
     await _db.delete('recent_files');
     await _db.delete('guest_usage');
-    Log.info('Local database wiped');
+    Log.info('Local database wiped (install counters preserved)');
   }
 
   Future<void> close() => _db.close();

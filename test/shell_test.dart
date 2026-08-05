@@ -1,8 +1,10 @@
 /// The tab set is a product decision, so it gets a test.
 ///
-/// Specifically: a signed-out user must never be offered Documents. That is not
-/// cosmetic — those screens call authenticated endpoints, and a tab that leads
-/// to a redirect is how a store reviewer decides the app is broken.
+/// Specifically: a signed-out user is offered no tabs at all. Every screen in
+/// the shell now calls authenticated endpoints, and a tab that leads to a
+/// redirect is how a store reviewer decides the app is broken. The two things a
+/// guest *can* do — open a PDF and scan one — are full-screen routes launched
+/// from the welcome screen, not tabs.
 ///
 /// [AppShell.destinationsFor] is a pure function precisely so this can be
 /// asserted without a widget binding, a provider container or a fake session.
@@ -15,26 +17,20 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AppShell.destinationsFor', () {
-    test('the reader is first for everyone', () {
-      for (final bool signedIn in <bool>[true, false]) {
-        final List<ShellDestination> tabs =
-            AppShell.destinationsFor(signedIn: signedIn);
-        expect(
-          tabs.first.route,
-          AppRoute.viewer,
-          reason: 'signedIn: $signedIn — the reader is the landing tab',
-        );
-      }
+    test('Home is the landing tab for a signed-in user', () {
+      final List<ShellDestination> tabs =
+          AppShell.destinationsFor(signedIn: true);
+
+      expect(tabs.first.route, AppRoute.home);
+      expect(tabs.first.path, AppRoute.homePath);
     });
 
-    test('a guest is never offered an authenticated destination', () {
-      final Set<String> guestRoutes = AppShell.destinationsFor(signedIn: false)
-          .map((ShellDestination d) => d.route)
-          .toSet();
-
-      expect(guestRoutes, isNot(contains(AppRoute.documents)));
-      expect(guestRoutes, isNot(contains(AppRoute.review)));
-      expect(guestRoutes, isNot(contains(AppRoute.dashboard)));
+    test('a guest gets no tabs at all', () {
+      // Not "no authenticated tabs" — none. The shell drops its navigation bar
+      // entirely rather than rendering one that cannot be used, which also
+      // keeps NavigationBar from asserting on an empty destination list during
+      // the frame between signing out and the redirect landing.
+      expect(AppShell.destinationsFor(signedIn: false), isEmpty);
     });
 
     test('signing in adds Documents when the feature is on', () {
@@ -45,23 +41,38 @@ void main() {
       expect(routes.contains(AppRoute.documents), Features.documents);
     });
 
+    test('the removed guest reader tab is really gone', () {
+      // `/viewer` was the guest landing page. Only the reader itself survives,
+      // at `/viewer/read`, and it is not a tab.
+      final Set<String> paths = AppShell.destinationsFor(signedIn: true)
+          .map((ShellDestination d) => d.path)
+          .toSet();
+
+      expect(paths, isNot(contains('/viewer')));
+      expect(paths, isNot(contains(AppRoute.pdfViewPath)));
+      expect(paths, isNot(contains(AppRoute.scanPath)));
+    });
+
     test('every destination has a distinct route and a label', () {
-      for (final bool signedIn in <bool>[true, false]) {
-        final List<ShellDestination> tabs =
-            AppShell.destinationsFor(signedIn: signedIn);
+      final List<ShellDestination> tabs =
+          AppShell.destinationsFor(signedIn: true);
 
-        expect(
-          tabs.map((ShellDestination d) => d.route).toSet().length,
-          tabs.length,
-          reason: 'duplicate routes would make the selected index ambiguous',
-        );
-        expect(tabs.every((ShellDestination d) => d.label.isNotEmpty), isTrue);
+      expect(
+        tabs.map((ShellDestination d) => d.route).toSet().length,
+        tabs.length,
+        reason: 'duplicate routes would make the selected index ambiguous',
+      );
+      expect(
+        tabs.map((ShellDestination d) => d.label).toSet().length,
+        tabs.length,
+        reason: 'two tabs sharing a label only shows up on the device',
+      );
+      expect(tabs.every((ShellDestination d) => d.label.isNotEmpty), isTrue);
 
-        // Material's NavigationBar throws below two destinations, and more
-        // than five is unreadable on a phone.
-        expect(tabs.length, greaterThanOrEqualTo(2));
-        expect(tabs.length, lessThanOrEqualTo(5));
-      }
+      // Material's NavigationBar throws below two destinations, and more than
+      // five is unreadable on a phone.
+      expect(tabs.length, greaterThanOrEqualTo(2));
+      expect(tabs.length, lessThanOrEqualTo(5));
     });
   });
 

@@ -6,25 +6,34 @@
 /// in `app/router.dart` — and it never fetches: a spinner that also owns logic
 /// is a spinner that can get stuck.
 ///
-/// It now runs the same animated scene as the welcome screen instead of a
-/// static mark and a spinner. That is worth the few frames: on a cold start
-/// this is the only thing on screen, and a moving 3D document says "working"
-/// far better than a circle going round — which every stalled app in the world
-/// also shows.
+/// It runs [PdfLoaderScene] — loose pages stacking into one bound PDF — rather
+/// than a static mark and a spinner. That is worth the few frames: on a cold
+/// start this is the only thing on screen, and moving pages say "working" far
+/// better than a circle going round, which every stalled app in the world also
+/// shows.
 ///
-/// A subtle point: the scene loops on a six-second timeline and the keychain
-/// read usually finishes in well under one, so most users see only the opening
-/// beat. It is built to look intentional at any frame it happens to be cut off
-/// at, rather than needing to complete.
+/// It is deliberately *not* the welcome screen's `PdfShowcaseScene`. That one
+/// tells the product story over six seconds and is right for a screen the user
+/// is reading and deciding on; this is a 2.4-second loop built to read as
+/// progress and to look finished at whatever frame startup happens to cut it
+/// off at.
+///
+/// The keychain read usually finishes in tens of milliseconds, which would make
+/// all of this a flicker — so `SplashHold` keeps the route up for
+/// [AppConfig.minimumSplash] and the router waits on both it and the token
+/// restore. The native launch screen written by `tool/native/apply.py` paints
+/// the same green behind it, so tapping the icon goes brand colour → brand
+/// colour → this, with no white frame anywhere in the sequence.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/i18n/strings.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/typography.dart';
-import '../../../core/widgets/pdf_scene.dart';
+import '../../../core/widgets/pdf_loader_scene.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -51,7 +60,7 @@ class SplashScreen extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      PdfShowcaseScene(height: scene, showPill: false),
+                      PdfLoaderScene(height: scene),
                       const SizedBox(height: AppSpacing.lg),
                       Text(
                         S.appName,
@@ -68,18 +77,14 @@ class SplashScreen extends StatelessWidget {
                               AppColors.inkInverse.withValues(alpha: 0.66),
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.xxl),
-                      // Kept for the screen-reader announcement and for the
-                      // rare slow keychain read; visually it is now secondary
-                      // to the scene rather than the main event.
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.brandLight.withValues(alpha: 0.7),
-                          semanticsLabel: S.loading,
-                        ),
+                      // The scene draws its own progress rail, so a second
+                      // indicator would be two things claiming to report the
+                      // same state. What is left is the part a rail cannot do:
+                      // tell a screen reader the app is loading.
+                      Semantics(
+                        label: S.loading,
+                        liveRegion: true,
+                        child: const SizedBox.shrink(),
                       ),
                     ],
                   ),

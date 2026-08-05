@@ -1,12 +1,15 @@
 /// The bottom navigation shell.
 ///
-/// The destination list is built per session rather than declared as a
-/// constant, because v1 has two different apps behind one binary:
+/// Every screen inside this shell requires a session. That is a change from the
+/// version with a guest "Read" tab: a signed-out user now lands on the welcome
+/// screen, and the two things they can do without an account — open a PDF and
+/// scan one — are full-screen routes launched straight from it rather than
+/// tabs. A navigation bar whose tabs all end in a login prompt is worse than no
+/// navigation bar.
 ///
-///   * **Signed out** — a PDF reader with a tools hub that asks for an account
-///     at the point of use. Three tabs, no dead ends.
-///   * **Signed in** — the reader plus the workspace: documents, statements,
-///     exports and everything under More. Four tabs.
+/// The list is still built per session rather than declared as a constant,
+/// because [Features] decides which tabs a given build has at all, and
+/// [destinationsFor] is what the tests assert against.
 ///
 /// The website's sidebar has 19 entries. A phone cannot carry 19 tabs, so the
 /// long tail lives under "More" rather than being cut — and for v1 the entries
@@ -29,23 +32,35 @@ class AppShell extends ConsumerWidget {
 
   /// The tabs this session gets.
   ///
-  /// Order is deliberate: the reader is first because it is the one thing that
-  /// works with no account, and a first-run user who lands on a login wall
-  /// uninstalls. Everything else earns its place to the right of it.
+  /// Order is deliberate: Home is first because it carries the two actions the
+  /// app is *for* — open a PDF, scan a PDF — plus what you were last reading.
+  /// Everything else earns its place to the right of it.
+  ///
+  /// [signedIn] is retained rather than removed even though every destination
+  /// below is now behind the session gate: the shell rebuilds on sign-out, and
+  /// a bar that keeps rendering the previous account's tabs for a frame while
+  /// the redirect runs is a flash of the wrong app.
   static List<ShellDestination> destinationsFor({required bool signedIn}) {
+    if (!signedIn) {
+      return const <ShellDestination>[];
+    }
+
     return <ShellDestination>[
       const ShellDestination(
-        route: AppRoute.viewer,
-        path: AppRoute.viewerPath,
-        label: 'Read',
-        icon: Icons.menu_book_outlined,
-        activeIcon: Icons.menu_book_rounded,
+        route: AppRoute.home,
+        path: AppRoute.homePath,
+        label: 'Home',
+        icon: Icons.home_outlined,
+        activeIcon: Icons.home_rounded,
       ),
       if (signedIn && Features.dashboardTab)
         const ShellDestination(
           route: AppRoute.dashboard,
           path: AppRoute.dashboardPath,
-          label: 'Home',
+          // "Metrics", not "Home" — Home is the tab above it now. Two tabs with
+          // the same label is the sort of thing that only shows up on the
+          // device, in a screenshot, after the build is uploaded.
+          label: 'Metrics',
           icon: Icons.space_dashboard_outlined,
           activeIcon: Icons.space_dashboard_rounded,
         ),
@@ -99,6 +114,17 @@ class AppShell extends ConsumerWidget {
     final bool signedIn = ref.watch(tokenStoreProvider).hasSession;
     final List<ShellDestination> destinations =
         destinationsFor(signedIn: signedIn);
+
+    // Sign-out empties the list, and this frame renders before the router's
+    // redirect has moved the user off. NavigationBar asserts on an empty
+    // destination list, so the bar is dropped rather than built empty.
+    if (destinations.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppColors.canvas,
+        body: child,
+      );
+    }
+
     final int index = _indexFor(context, destinations);
 
     return Scaffold(
