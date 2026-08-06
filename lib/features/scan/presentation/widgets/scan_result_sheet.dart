@@ -76,7 +76,12 @@ class _ScanResultSheetState extends ConsumerState<_ScanResultSheet> {
 
   Future<void> _share() async {
     // Same call shape as every other share in this app (the viewer, exports,
-    // barcodes) so there is one share API to reason about, not two.
+    // barcodes) so there is one share API to reason about, not two — including
+    // the anchor. On iPad the share sheet is a popover: with no origin
+    // rectangle to attach to, `shareXFiles` throws instead of opening. See the
+    // identical note in features/tools/presentation/conversion_files.dart.
+    final RenderObject? box = context.findRenderObject();
+
     await Share.shareXFiles(
       <XFile>[
         XFile(
@@ -86,6 +91,8 @@ class _ScanResultSheetState extends ConsumerState<_ScanResultSheet> {
         ),
       ],
       subject: widget.result.filename,
+      sharePositionOrigin:
+          box is RenderBox && box.hasSize ? box.localToGlobal(Offset.zero) & box.size : null,
     );
   }
 

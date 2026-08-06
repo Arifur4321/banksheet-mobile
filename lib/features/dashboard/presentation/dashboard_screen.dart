@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/i18n/strings.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/typography.dart';
@@ -264,13 +265,15 @@ class _Body extends StatelessWidget {
         const SizedBox(height: AppSpacing.xxl),
         _UsageCard(limits: limits),
         const SizedBox(height: AppSpacing.xxl),
-        DarkActionCard(
-          eyebrow: S.webExtraction,
-          title: S.webExtractionSubtitle,
-          body: '${S.emailsFound}: ${Fmt.number(data.webEmailsFound)}',
-          onTap: () => context.pushNamed(AppRoute.webExtractions),
-        ),
-        const SizedBox(height: AppSpacing.xxl),
+        if (Features.webExtraction) ...<Widget>[
+          DarkActionCard(
+            eyebrow: S.webExtraction,
+            title: S.webExtractionSubtitle,
+            body: '${S.emailsFound}: ${Fmt.number(data.webEmailsFound)}',
+            onTap: () => context.pushNamed(AppRoute.webExtractions),
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+        ],
         const SectionHeader(title: S.quickActions),
         const _QuickActions(),
         const SizedBox(height: AppSpacing.xxl),
@@ -309,7 +312,12 @@ class _StatGrid extends StatelessWidget {
             value: Fmt.number(data.pendingReviews),
             icon: Icons.rate_review_outlined,
             tone: data.pendingReviews > 0 ? StatTone.warn : StatTone.neutral,
-            onTap: () => context.goNamed(AppRoute.review),
+            // The standalone review queue is behind a flag, and when it is off
+            // its route does not exist. The rows are still reviewable inside
+            // the document, which is where this sends you instead.
+            onTap: () => context.goNamed(
+              Features.reviewQueue ? AppRoute.review : AppRoute.documents,
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.md),

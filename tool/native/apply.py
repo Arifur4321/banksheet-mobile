@@ -148,10 +148,37 @@ def android(base):
     if 'android.permission.INTERNET' not in s:
         s = s.replace('<application',
                       '    <uses-permission android:name="android.permission.INTERNET" />\n'
-                      '    <uses-permission android:name="android.permission.CAMERA" />\n'
                       '    <uses-permission android:name="com.android.vending.BILLING" />\n'
                       '\n    <application', 1)
-        _say(ok, 'permissions added (INTERNET, CAMERA, BILLING)')
+        _say(ok, 'permissions added (INTERNET, BILLING)')
+
+    # android.permission.CAMERA is deliberately NOT declared, and an older
+    # manifest that declares it is repaired here.
+    #
+    # This is the bug that broke Scan to PDF on every Android 6+ device. The
+    # scanner does not open a camera: it sends MediaStore.ACTION_IMAGE_CAPTURE
+    # through image_picker and lets the system camera app take the photo. That
+    # needs no permission at all -- UNLESS the manifest declares CAMERA, and
+    # then Android's contract is explicit:
+    #
+    #   "if your app targets M and above and declares as using the CAMERA
+    #    permission which is not granted, then attempting to use this action
+    #    will result in a SecurityException."
+    #    -- developer.android.com, MediaStore.ACTION_IMAGE_CAPTURE
+    #
+    # Nothing in this app requests CAMERA at runtime (there is no
+    # permission_handler dependency, and image_picker deliberately does not ask
+    # for a permission it does not need), so the declaration alone guaranteed
+    # the capture intent would be refused. Declaring it and requesting it would
+    # also cost the app a permission prompt and a Play listing disclosure for a
+    # capability it never uses.
+    if 'android.permission.CAMERA' in s:
+        s = re.sub(
+            r'[ \t]*<uses-permission android:name="android\.permission\.CAMERA"[^>]*/>\s*\n',
+            '',
+            s,
+        )
+        _say(ok, 'CAMERA permission removed (it makes ACTION_IMAGE_CAPTURE throw)')
 
     if 'application/pdf' not in s:
         # Anchored on the LAUNCHER filter's closing tag, which every

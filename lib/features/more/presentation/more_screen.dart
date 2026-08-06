@@ -5,6 +5,12 @@
 /// the work is actually shaped: what you produce (Work), what you keep
 /// (Documents), what you convert (Tools), and who you are (Account).
 ///
+/// Every row is gated on the [Features] flag that decides whether
+/// `lib/app/router.dart` registers its route. They used to be listed
+/// unconditionally, so with the v1 flag defaults four of these rows —
+/// Web extraction, Profiles, Templates, Generated PDFs — called
+/// `pushNamed` with a name go_router had never been given, and threw.
+///
 /// There is deliberately nothing about the team on this screen. Inviting,
 /// removing and re-roling people has consequences that are hard to see on a
 /// phone, so it stays on the web — `CompanyResource` publishes a member count
@@ -16,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/i18n/strings.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/typography.dart';
@@ -70,82 +77,91 @@ class MoreScreen extends ConsumerWidget {
                 SettingsGroup(
                   title: S.sectionWork,
                   children: <Widget>[
-                    NavRow(
-                      icon: Icons.travel_explore_rounded,
-                      label: S.webExtraction,
-                      description: S.webExtractionSubtitle,
-                      onTap: () => context.pushNamed(AppRoute.webExtractions),
-                    ),
-                    NavRow(
-                      icon: Icons.tune_rounded,
-                      label: S.profiles,
-                      description: S.profilesSubtitle,
-                      onTap: () => context.pushNamed(AppRoute.profiles),
-                    ),
-                    NavRow(
-                      icon: Icons.inventory_2_outlined,
-                      label: S.exports,
-                      description: S.exportsSubtitle,
-                      onTap: () => context.pushNamed(AppRoute.exports),
-                    ),
+                    if (Features.webExtraction)
+                      NavRow(
+                        icon: Icons.travel_explore_rounded,
+                        label: S.webExtraction,
+                        description: S.webExtractionSubtitle,
+                        onTap: () => context.pushNamed(AppRoute.webExtractions),
+                      ),
+                    if (Features.extractionProfiles)
+                      NavRow(
+                        icon: Icons.tune_rounded,
+                        label: S.profiles,
+                        description: S.profilesSubtitle,
+                        onTap: () => context.pushNamed(AppRoute.profiles),
+                      ),
+                    if (Features.exports)
+                      NavRow(
+                        icon: Icons.inventory_2_outlined,
+                        label: S.exports,
+                        description: S.exportsSubtitle,
+                        onTap: () => context.pushNamed(AppRoute.exports),
+                      ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xxl),
                 SettingsGroup(
                   title: S.documents,
                   children: <Widget>[
-                    NavRow(
-                      icon: Icons.article_outlined,
-                      label: S.templates,
-                      description: S.templatesSubtitle,
-                      onTap: () => context.pushNamed(AppRoute.templates),
-                    ),
-                    NavRow(
-                      icon: Icons.picture_as_pdf_outlined,
-                      label: S.generatedPdfs,
-                      description: S.generatedPdfsSubtitle,
-                      onTap: () => context.pushNamed(AppRoute.generatedPdfs),
-                    ),
-                    NavRow(
-                      icon: Icons.draw_outlined,
-                      label: S.signatures,
-                      description: S.signaturesSubtitle,
-                      onTap: () => context.pushNamed(AppRoute.signatures),
-                    ),
+                    if (Features.templates)
+                      NavRow(
+                        icon: Icons.article_outlined,
+                        label: S.templates,
+                        description: S.templatesSubtitle,
+                        onTap: () => context.pushNamed(AppRoute.templates),
+                      ),
+                    if (Features.templates)
+                      NavRow(
+                        icon: Icons.picture_as_pdf_outlined,
+                        label: S.generatedPdfs,
+                        description: S.generatedPdfsSubtitle,
+                        onTap: () => context.pushNamed(AppRoute.generatedPdfs),
+                      ),
+                    if (Features.signatures)
+                      NavRow(
+                        icon: Icons.draw_outlined,
+                        label: S.signatures,
+                        description: S.signaturesSubtitle,
+                        onTap: () => context.pushNamed(AppRoute.signatures),
+                      ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xxl),
                 SettingsGroup(
                   title: S.sectionTools,
                   children: <Widget>[
-                    NavRow(
-                      icon: Icons.qr_code_2_rounded,
-                      label: S.barcode,
-                      description: S.barcodeSubtitle,
-                      onTap: () => context.pushNamed(AppRoute.barcode),
-                    ),
-                    NavRow(
-                      icon: Icons.history_rounded,
-                      label: S.conversionHistory,
-                      description: S.conversionsSubtitle,
-                      onTap: () => context.pushNamed(AppRoute.conversions),
-                    ),
+                    if (Features.barcode)
+                      NavRow(
+                        icon: Icons.qr_code_2_rounded,
+                        label: S.barcode,
+                        description: S.barcodeSubtitle,
+                        onTap: () => context.pushNamed(AppRoute.barcode),
+                      ),
+                    if (Features.tools)
+                      NavRow(
+                        icon: Icons.history_rounded,
+                        label: S.conversionHistory,
+                        description: S.conversionsSubtitle,
+                        onTap: () => context.pushNamed(AppRoute.conversions),
+                      ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xxl),
                 SettingsGroup(
                   title: S.sectionAccount,
                   children: <Widget>[
-                    NavRow(
-                      icon: Icons.credit_card_rounded,
-                      label: S.billing,
-                      description: S.billingSubtitle,
-                      trailingLabel: session?.workspace.planLabel,
-                      // A nudge, not a sales pitch: only when there is nothing
-                      // to manage yet.
-                      badgeLabel: _canUpgrade(session) ? S.upgrade : null,
-                      onTap: () => context.pushNamed(AppRoute.billing),
-                    ),
+                    if (Features.billing)
+                      NavRow(
+                        icon: Icons.credit_card_rounded,
+                        label: S.billing,
+                        description: S.billingSubtitle,
+                        trailingLabel: session?.workspace.planLabel,
+                        // A nudge, not a sales pitch: only when there is nothing
+                        // to manage yet.
+                        badgeLabel: _canUpgrade(session) ? S.upgrade : null,
+                        onTap: () => context.pushNamed(AppRoute.billing),
+                      ),
                     NavRow(
                       icon: Icons.settings_rounded,
                       label: S.settings,

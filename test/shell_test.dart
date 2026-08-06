@@ -85,9 +85,17 @@ void main() {
 
     test('v1 hides the long tail', () {
       expect(Features.reviewQueue, isFalse);
-      expect(Features.webExtraction, isFalse);
       expect(Features.templates, isFalse);
       expect(Features.apiKeys, isFalse);
+    });
+
+    // Web-to-Excel is on. It came back because the navigation offered it in
+    // three places (Tools, More, the dashboard) while the flag kept its route
+    // out of the router, so every one of those taps threw. Those entries are
+    // now gated on the flag as well, so this is a product decision again
+    // rather than a crash.
+    test('web-to-excel ships', () {
+      expect(Features.webExtraction, isTrue);
     });
 
     test('the diagnostics map covers every flag', () {

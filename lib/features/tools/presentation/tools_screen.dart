@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/i18n/strings.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/typography.dart';
@@ -106,21 +107,27 @@ class ToolsScreen extends ConsumerWidget {
           sliver: SliverList.list(
             children: <Widget>[
               const SectionHeader(title: S.moreTools),
-              DarkActionCard(
-                eyebrow: S.barcode,
-                title: S.barcodeSubtitle,
-                body: S.barcodeCardBody,
-                icon: Icons.qr_code_2_rounded,
-                onTap: () => context.pushNamed(AppRoute.barcode),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DarkActionCard(
-                eyebrow: S.webExtraction,
-                title: S.webExtractionSubtitle,
-                body: S.webExtractionCardBody,
-                icon: Icons.travel_explore_rounded,
-                onTap: () => context.pushNamed(AppRoute.webExtractions),
-              ),
+              // Both cards are gated on the flag that decides whether
+              // lib/app/router.dart registers their route. Offering a card for
+              // a route that was never registered is a tap that throws.
+              if (Features.barcode) ...<Widget>[
+                DarkActionCard(
+                  eyebrow: S.barcode,
+                  title: S.barcodeSubtitle,
+                  body: S.barcodeCardBody,
+                  icon: Icons.qr_code_2_rounded,
+                  onTap: () => context.pushNamed(AppRoute.barcode),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              if (Features.webExtraction)
+                DarkActionCard(
+                  eyebrow: S.webExtraction,
+                  title: S.webExtractionSubtitle,
+                  body: S.webExtractionCardBody,
+                  icon: Icons.travel_explore_rounded,
+                  onTap: () => context.pushNamed(AppRoute.webExtractions),
+                ),
             ]),
         ),
       ]);

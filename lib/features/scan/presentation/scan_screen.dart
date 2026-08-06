@@ -58,6 +58,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     with WidgetsBindingObserver {
   bool _autoStarted = false;
 
+  /// True while the discard confirmation sheet is on screen.
+  bool _discarding = false;
+
   @override
   void initState() {
     super.initState();
@@ -149,6 +152,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   }
 
   Future<void> _confirmDiscard() async {
+    // Two entry points reach this — the system Back gesture through [PopScope]
+    // and the ✕ in the app bar — so a second Back while the sheet is already up
+    // would otherwise stack a second identical sheet, and dismissing one would
+    // leave the other on screen.
+    if (_discarding) {
+      return;
+    }
+
     if (ref.read(scanControllerProvider).isEmpty) {
       if (mounted) {
         context.pop();
@@ -156,13 +167,20 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       return;
     }
 
-    final bool discard = await confirmAction(
-      context,
-      title: 'Discard this scan?',
-      message: 'The pages you captured will not be saved.',
-      confirmLabel: 'Discard',
-      destructive: true,
-    );
+    _discarding = true;
+    final bool discard;
+    try {
+      discard = await confirmAction(
+        context,
+        title: 'Discard this scan?',
+        message: 'The pages you captured will not be saved.',
+        confirmLabel: 'Discard',
+        destructive: true,
+      );
+    } finally {
+      _discarding = false;
+    }
+
     if (!discard || !mounted) {
       return;
     }
@@ -293,28 +311,45 @@ class _EmptyScan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Every child carries an explicit key.
+    //
+    // `ListView(children: ...)` matches old elements to new ones by POSITION,
+    // and the two conditional blocks below insert rows in the MIDDLE of the
+    // list. Unkeyed, the moment a camera failure sets `error`, position 5 stops
+    // being the "Take a photo" card and becomes the notice — so Flutter tears
+    // down that card's whole `Material`/`InkWell` subtree, inherited elements
+    // and all, during the very build that the tap which caused the failure is
+    // still settling. Keys make the two rows an insertion instead of a
+    // reshuffle: the cards keep their elements and nothing is deactivated.
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.page),
       children: <Widget>[
-        const SizedBox(height: AppSpacing.sm),
-        Text('Make a PDF from photos', style: AppText.h1),
-        const SizedBox(height: AppSpacing.xs),
+        const SizedBox(key: ValueKey<String>('scan-gap-top'), height: AppSpacing.sm),
+        Text(
+          'Make a PDF from photos',
+          key: const ValueKey<String>('scan-title'),
+          style: AppText.h1,
+        ),
+        const SizedBox(key: ValueKey<String>('scan-gap-title'), height: AppSpacing.xs),
         Text(
           'Photograph each page, or pick images you already have. '
           'Everything happens on this phone — nothing is uploaded.',
+          key: const ValueKey<String>('scan-blurb'),
           style: AppText.body.copyWith(color: AppColors.inkMuted),
         ),
 
         if (error != null) ...<Widget>[
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(key: ValueKey<String>('scan-gap-error'), height: AppSpacing.lg),
           InlineNotice(
+            key: const ValueKey<String>('scan-error'),
             tone: NoticeTone.warn,
             message: describeScanError(error),
           ),
         ],
 
-        const SizedBox(height: AppSpacing.xxl),
+        const SizedBox(key: ValueKey<String>('scan-gap-sources'), height: AppSpacing.xxl),
         _SourceCard(
+          key: const ValueKey<String>('scan-source-camera'),
           icon: Icons.photo_camera_rounded,
           title: 'Take a photo',
           body: 'Use the camera, one page at a time.',
@@ -322,8 +357,9 @@ class _EmptyScan extends StatelessWidget {
           enabled: !busy,
           onTap: onCamera,
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(key: ValueKey<String>('scan-gap-between'), height: AppSpacing.md),
         _SourceCard(
+          key: const ValueKey<String>('scan-source-gallery'),
           icon: Icons.photo_library_rounded,
           title: 'Choose from gallery',
           body: 'Select one or more images at once.',
@@ -332,8 +368,9 @@ class _EmptyScan extends StatelessWidget {
         ),
 
         if (!signedIn && freeLeft != null) ...<Widget>[
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(key: ValueKey<String>('scan-gap-quota'), height: AppSpacing.xl),
           InlineNotice(
+            key: const ValueKey<String>('scan-quota'),
             tone: freeLeft! > 0 ? NoticeTone.info : NoticeTone.warn,
             message: freeLeft! > 0
                 ? '$freeLeft of ${AppConfig.freeScanPdfs} free PDFs left. '
@@ -356,6 +393,7 @@ class _SourceCard extends StatelessWidget {
     required this.body,
     required this.enabled,
     required this.onTap,
+    super.key,
     this.primary = false,
   });
 
@@ -464,6 +502,7 @@ class _PageList extends ConsumerWidget {
 
         if (offset == 1 && i == 0) {
           return Padding(
+            key: const ValueKey<String>('scan-list-error'),
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: InlineNotice(
               tone: NoticeTone.warn,
@@ -476,6 +515,7 @@ class _PageList extends ConsumerWidget {
 
         if (index >= scan.pageCount) {
           return Padding(
+            key: const ValueKey<String>('scan-list-add'),
             padding: const EdgeInsets.only(top: AppSpacing.xs),
             child: OutlinedButton.icon(
               onPressed: (scan.isBusy || full) ? null : onAdd,
@@ -488,10 +528,18 @@ class _PageList extends ConsumerWidget {
           );
         }
 
+        // The key belongs on the widget the builder RETURNS.
+        //
+        // SliverChildBuilderDelegate reads `child.key` off this widget and
+        // nothing deeper, so a key on the ScanPageTile inside the Padding was
+        // silently discarded — every move or delete re-inflated every tile
+        // below it (re-decoding each thumbnail) instead of moving the elements
+        // that already existed, which is exactly what the key was added to
+        // prevent.
         return Padding(
+          key: ValueKey<String>(scan.pages[index].id),
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
           child: ScanPageTile(
-            key: ValueKey<String>(scan.pages[index].id),
             page: scan.pages[index],
             index: index,
             total: scan.pageCount,

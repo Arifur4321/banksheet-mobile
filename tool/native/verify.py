@@ -76,8 +76,12 @@ def android_checks():
           f'app name is "{APP_NAME}"', 'python tool/native/apply.py')
     check('application/pdf' in manifest,
           'PDF "open with" intent filters present', 'python tool/native/apply.py')
-    check('android.permission.CAMERA' in manifest,
-          'CAMERA permission declared', 'python tool/native/apply.py')
+    # Asserted ABSENT, not present. Declaring CAMERA while never requesting it
+    # at runtime makes MediaStore.ACTION_IMAGE_CAPTURE throw a SecurityException
+    # on Android 6+, which is exactly "Scan to PDF does nothing". See the note
+    # in apply.py.
+    check('android.permission.CAMERA' not in manifest,
+          'CAMERA permission absent (required for Scan to PDF)', 'python tool/native/apply.py')
 
     gradle = read(os.path.join(ANDROID, 'app', 'build.gradle.kts'))
     check(f'applicationId = "{PACKAGE}"' in gradle,

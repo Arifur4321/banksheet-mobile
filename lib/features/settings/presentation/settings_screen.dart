@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
+import '../../../core/config/feature_flags.dart';
 import '../../../core/i18n/strings.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/hero_scenes.dart';
@@ -114,18 +115,24 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.xxl),
-                SettingsGroup(
-                  title: S.sectionDeveloper,
-                  children: <Widget>[
-                    NavRow(
-                      icon: Icons.vpn_key_outlined,
-                      label: S.apiKeys,
-                      description: S.apiKeysSubtitle,
-                      onTap: () => context.pushNamed(AppRoute.apiKeys),
-                    ),
-                  ],
-                ),
+                // The whole group, not just the row: with Features.apiKeys off
+                // the route is not registered, so the only thing in here is a
+                // tap that throws — and an empty "Developer" heading would be
+                // worse than no heading.
+                if (Features.apiKeys) ...<Widget>[
+                  const SizedBox(height: AppSpacing.xxl),
+                  SettingsGroup(
+                    title: S.sectionDeveloper,
+                    children: <Widget>[
+                      NavRow(
+                        icon: Icons.vpn_key_outlined,
+                        label: S.apiKeys,
+                        description: S.apiKeysSubtitle,
+                        onTap: () => context.pushNamed(AppRoute.apiKeys),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.xxl),
                 SettingsGroup(
                   title: S.sectionSupport,

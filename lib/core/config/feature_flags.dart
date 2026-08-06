@@ -80,11 +80,17 @@ abstract final class Features {
     defaultValue: false,
   );
 
-  /// Web-to-Excel contact crawling. A desktop workflow that nobody starts on a
-  /// phone, and the feature most likely to attract questions about scraping.
+  /// Web-to-Excel contact crawling.
+  ///
+  /// On since the flag and the navigation disagreed: the Tools tab, the More
+  /// tab and the dashboard all offered "Web extraction" unconditionally while
+  /// this flag kept `lib/app/router.dart` from registering the route, so every
+  /// one of those taps hit go_router with a name it had never heard of. The
+  /// screens are now gated on the flag as well (so turning it off is safe), and
+  /// the feature itself is wanted, so it ships.
   static const bool webExtraction = bool.fromEnvironment(
     'BANKSHEET_FEATURE_WEB_EXTRACTION',
-    defaultValue: false,
+    defaultValue: true,
   );
 
   /// HTML templates and the generated-PDF library. Authoring belongs on the
