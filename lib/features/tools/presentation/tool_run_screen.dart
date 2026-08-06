@@ -29,6 +29,7 @@ import '../../../core/widgets/states.dart';
 import '../data/tool_repository.dart';
 import '../domain/conversion.dart';
 import '../domain/tool.dart';
+import '../domain/tool_copy.dart';
 import 'conversion_files.dart';
 import 'providers.dart';
 import 'widgets/conversion_result_card.dart';
@@ -208,8 +209,15 @@ class _Body extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (tool.description != null) ...<Widget>[
-          Text(tool.description!, style: AppText.bodySm),
+        // ToolCopy, not `tool.description`: the server describes each tool by
+        // the program that runs it ("with LibreOffice headless", "local
+        // Ghostscript quality presets"), which is right for the API docs and
+        // wrong for a phone. Display only — see features/tools/domain/tool_copy.dart.
+        if (ToolCopy.description(tool.key, tool.description) != null) ...<Widget>[
+          Text(
+            ToolCopy.description(tool.key, tool.description)!,
+            style: AppText.bodySm,
+          ),
           const SizedBox(height: AppSpacing.lg),
         ],
         if (!tool.supported) ...<Widget>[
@@ -219,10 +227,20 @@ class _Body extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.lg),
         ],
-        if (tool.warning != null) ...<Widget>[
-          InlineNotice(message: tool.warning!, tone: NoticeTone.warn),
-          const SizedBox(height: AppSpacing.lg),
-        ],
+        // `tool.warning` is deliberately NOT rendered here.
+        //
+        // The server still sends it (DocumentConversionService::tools() sets it
+        // on pdf-to-word, and ToolResource publishes it), and ToolDefinition
+        // still parses it, so the API contract and the website's own warning box
+        // are untouched — this is a mobile presentation decision only. On a
+        // phone the caveat filled a third of the screen above the file picker
+        // and pushed the primary action below the fold.
+        //
+        // To bring it back, restore:
+        //   if (tool.warning != null) ...<Widget>[
+        //     InlineNotice(message: tool.warning!, tone: NoticeTone.warn),
+        //     const SizedBox(height: AppSpacing.lg),
+        //   ],
         if (editing && tool.supported) ...<Widget>[
           if (tool.needsFiles) ...<Widget>[
             FileSlot(

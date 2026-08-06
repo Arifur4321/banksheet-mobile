@@ -92,11 +92,23 @@ class PageScaffold extends ConsumerWidget {
         bottom: bottom,
       ),
       floatingActionButton: floatingActionButton,
-      body: Column(
-        children: <Widget>[
-          if (!online) const OfflineBanner(),
-          Expanded(child: body),
-        ],
+      // `SafeArea(top: false)`: the AppBar already consumes the status bar, but
+      // nothing was consuming the bottom inset.
+      //
+      // Every screen on this scaffold is a full-screen route pushed on the root
+      // navigator, so unlike the tabbed screens there is no NavigationBar
+      // sitting in the gap. The last control on the page therefore rendered
+      // underneath Android's navigation bar and could not be tapped — the
+      // "Convert to DOCX" button at the bottom of every tool form is the one
+      // people hit first.
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: <Widget>[
+            if (!online) const OfflineBanner(),
+            Expanded(child: body),
+          ],
+        ),
       ),
     );
   }

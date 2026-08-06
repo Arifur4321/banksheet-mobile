@@ -1,4 +1,4 @@
-# BankSheet Pro — one command to make a checkout buildable.
+# BankSheet Pro -- one command to make a checkout buildable.
 #
 #     .\tool\setup.ps1
 #
@@ -7,11 +7,11 @@
 #
 # WHY IT IS NEEDED EVERY TIME
 # ---------------------------
-# `android/` and `ios/` are in .gitignore — they are regenerated per machine and
+# `android/` and `ios/` are in .gitignore -- they are regenerated per machine and
 # per Flutter version. `flutter create` fills them with FLUTTER's defaults:
 # Flutter's icon, Flutter's splash screen, an applicationId derived from the
 # project name, and no PDF intent filters. `apply.py` puts this app's identity
-# back on top. Miss it and the build still succeeds — you just ship the wrong
+# back on top. Miss it and the build still succeeds -- you just ship the wrong
 # app.
 #
 # The script stops on the first failure and finishes by verifying the result,
@@ -63,4 +63,4 @@ Write-Host "    flutter build appbundle --release   # for Play"
 Write-Host ""
 Write-Host "If the phone still shows the old icon, the icon is baked into the" -ForegroundColor Yellow
 Write-Host "installed APK: run 'flutter clean', rebuild, and if it persists" -ForegroundColor Yellow
-Write-Host "uninstall the app once — some launchers cache it until reinstall." -ForegroundColor Yellow
+Write-Host "uninstall the app once -- some launchers cache it until reinstall." -ForegroundColor Yellow

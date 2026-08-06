@@ -16,6 +16,7 @@ import '../../../../core/theme/tokens.dart';
 import '../../../../core/theme/typography.dart';
 import '../../../../core/widgets/scene_3d.dart';
 import '../../domain/tool.dart';
+import '../../domain/tool_copy.dart';
 
 /// The icon for a tool key.
 ///
@@ -68,7 +69,7 @@ class ToolTile extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       color: enabled ? AppColors.surface : AppColors.surfaceMuted,
       semanticLabel: enabled
-          ? '${tool.label}. ${tool.description ?? ''}'
+          ? '${tool.label}. ${ToolCopy.description(tool.key, tool.description) ?? ''}'
           : '${tool.label}. ${tool.unsupportedReason ?? ''}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

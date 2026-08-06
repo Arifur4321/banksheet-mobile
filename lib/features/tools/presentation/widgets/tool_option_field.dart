@@ -19,8 +19,8 @@ import 'package:flutter/services.dart';
 import '../../../../core/i18n/strings.dart';
 import '../../../../core/theme/tokens.dart';
 import '../../../../core/theme/typography.dart';
-import '../../../../core/utils/formatters.dart';
 import '../../domain/tool.dart';
+import '../../domain/tool_copy.dart';
 
 class ToolOptionField extends StatefulWidget {
   const ToolOptionField({
@@ -83,7 +83,12 @@ class _ToolOptionFieldState extends State<ToolOptionField> {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Expanded(child: Text(option.label, style: AppText.label)),
+              Expanded(
+                child: Text(
+                  ToolCopy.optionLabel(option.name, option.label),
+                  style: AppText.label,
+                ),
+              ),
               Text(
                 required ? S.required : S.optional,
                 style: AppText.caption.copyWith(
@@ -139,9 +144,14 @@ class _ToolOptionFieldState extends State<ToolOptionField> {
               style: AppText.caption.copyWith(color: AppColors.danger),
             ),
           ],
-          if (option.help != null) ...<Widget>[
+          // Display only: the wire name, type, bounds and pattern are the
+          // server's and are untouched. See features/tools/domain/tool_copy.dart.
+          if (ToolCopy.optionHelp(option.name, option.help) != null) ...<Widget>[
             const SizedBox(height: AppSpacing.xs),
-            Text(option.help!, style: AppText.caption),
+            Text(
+              ToolCopy.optionHelp(option.name, option.help)!,
+              style: AppText.caption,
+            ),
           ],
         ],
       ),
@@ -186,7 +196,9 @@ class _Choice extends StatelessWidget {
               DropdownMenuItem<String>(
                 value: choice,
                 child: Text(
-                  Fmt.humanise(choice),
+                  // `choice` is still exactly what gets posted; only the text
+                  // beside it changes.
+                  ToolCopy.choiceLabel(option.name, choice),
                   style: AppText.body,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

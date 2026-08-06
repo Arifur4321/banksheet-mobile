@@ -318,7 +318,8 @@ abstract final class S {
 
   // ------------------------------------------------------------------ tools
   static const String pdfTools = 'PDF tools';
-  static const String pdfToolsSubtitle = 'Convert, merge, split, compress, OCR';
+  static const String pdfToolsSubtitle =
+      'Convert, merge, split, shrink and make scans searchable';
   static const String conversions = 'Conversions';
   static const String convert = 'Convert';
   static const String openResult = 'Open result';
@@ -365,7 +366,8 @@ abstract final class S {
       'No app on this device can open that file. Try sharing it instead.';
   static const String invalidChoice = 'Pick one of the listed values';
   static const String invalidFormat = 'That format is not accepted';
-  static const String invalidJson = 'Enter a valid JSON object';
+  static const String invalidJson =
+      'Write this as {"name": "value"} pairs inside curly brackets';
 
   static String toolNotFound(String key) =>
       'The tool "$key" is not available on this account.';

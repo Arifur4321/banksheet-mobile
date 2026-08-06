@@ -82,6 +82,22 @@ abstract final class AppTheme {
         space: 1,
       ),
 
+      // NOTE on `Size.fromHeight(52)` in the two button themes below.
+      //
+      // `Size.fromHeight(x)` is `Size(double.infinity, x)`, so every FilledButton
+      // and OutlinedButton in this app is full-width by default. That is the
+      // intended look, and it is safe under a Column, a ListView or an Expanded
+      // — anything that hands the button a bounded width.
+      //
+      // It is NOT safe as a non-flex child of a Row, which passes unbounded
+      // width down: ButtonStyleButton's ConstrainedBox then resolves to a tight
+      // `w=Infinity` and layout throws "BoxConstraints forces an infinite
+      // width", taking the whole surrounding Scaffold down to a blank screen.
+      //
+      // Putting one of these buttons directly in a Row therefore needs a local
+      // `style: FilledButton.styleFrom(minimumSize: Size(0, 52))`. See
+      // `_CreateBar` in features/scan/presentation/scan_screen.dart, which is
+      // currently the only place in the app that does this.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.brand,

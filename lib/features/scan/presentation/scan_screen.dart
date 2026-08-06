@@ -609,6 +609,25 @@ class _CreateBar extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.lg),
               FilledButton.icon(
+                // The width has to be released here, and this is the only
+                // button in the app that sits beside something in a Row.
+                //
+                // AppTheme's filledButtonTheme uses `Size.fromHeight(52)`,
+                // which is `Size(double.infinity, 52)` — every full-width CTA
+                // in the app depends on that. A Row hands a non-flex child
+                // UNBOUNDED width, so ButtonStyleButton's ConstrainedBox
+                // resolved to a tight `w=Infinity` and layout threw
+                // "BoxConstraints forces an infinite width", which took the
+                // whole Scaffold down with it: blank screen, the moment the
+                // first page made this bar appear.
+                //
+                // Overriding only minimumSize keeps every other themed value
+                // (colour, padding, radius, text style) and lets the button
+                // size to its label, which is what the design wants next to
+                // the page count.
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 52),
+                ),
                 onPressed: building ? null : onCreate,
                 icon: building
                     ? const SizedBox(
