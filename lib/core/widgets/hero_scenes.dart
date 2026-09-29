@@ -18,8 +18,7 @@ import '../theme/tokens.dart';
 import '../theme/typography.dart';
 import 'scene_3d.dart';
 
-/// Shared shell: a dark forest panel with a bloom, the eyebrow/title block on
-/// the left and the 3D stage floating on the right.
+/// Shared shell with separate space for readable copy and decorative artwork.
 class HeroPanel extends StatelessWidget {
   const HeroPanel({
     required this.eyebrow,
@@ -37,69 +36,96 @@ class HeroPanel extends StatelessWidget {
   final String? subtitle;
   final Widget scene;
   final Widget? trailing;
+
+  /// Minimum height; the panel grows to fit the complete copy at any text size.
   final double height;
   final Color background;
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(minHeight: height),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: background,
         borderRadius: AppRadius.cardAll,
         boxShadow: AppShadows.lifted,
       ),
-      child: Stack(
-        children: <Widget>[
-          Positioned(
-            right: -30,
-            top: -20,
-            bottom: -20,
-            width: 220,
-            child: ExcludeSemantics(child: scene),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool stackArtwork = constraints.maxWidth < 250 ||
+              MediaQuery.textScalerOf(context).scale(20) > 26;
+          final double artworkWidth = stackArtwork
+              ? 120
+              : math.min(144, constraints.maxWidth * 0.34);
+
+          final Widget copy = Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                eyebrow.toUpperCase(),
+                style: AppText.eyebrow.copyWith(color: AppColors.brandLight),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                title,
+                style: AppText.h2.copyWith(color: AppColors.inkInverse),
+              ),
+              if (subtitle != null) ...<Widget>[
+                const SizedBox(height: AppSpacing.xs),
                 Text(
-                  eyebrow.toUpperCase(),
-                  style: AppText.eyebrow.copyWith(color: AppColors.brandLight),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                SizedBox(
-                  width: 210,
-                  child: Text(
-                    title,
-                    style: AppText.h2.copyWith(color: AppColors.inkInverse),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  subtitle!,
+                  style: AppText.bodySm.copyWith(
+                    color: AppColors.inkInverse.withValues(alpha: 0.82),
                   ),
                 ),
-                if (subtitle != null) ...<Widget>[
-                  const SizedBox(height: AppSpacing.xs),
-                  SizedBox(
-                    width: 210,
-                    child: Text(
-                      subtitle!,
-                      style: AppText.bodySm.copyWith(
-                        color: AppColors.inkInverse.withValues(alpha: 0.72),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-                if (trailing != null) ...<Widget>[
-                  const SizedBox(height: AppSpacing.md),
-                  trailing!,
-                ],
               ],
+            ],
+          );
+
+          // Clip the transformed layers as well as reserving layout space:
+          // the floating sheets and their glow must never paint over the copy.
+          final Widget artwork = ExcludeSemantics(
+            child: IgnorePointer(
+              child: ClipRect(
+                child: SizedBox(
+                  width: artworkWidth,
+                  height: artworkWidth,
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: SizedBox(width: 220, height: 220, child: scene),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          );
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              if (stackArtwork) ...<Widget>[
+                copy,
+                const SizedBox(height: AppSpacing.md),
+                Align(alignment: Alignment.centerRight, child: artwork),
+              ] else
+                Row(
+                  children: <Widget>[
+                    Expanded(child: copy),
+                    const SizedBox(width: AppSpacing.md),
+                    artwork,
+                  ],
+                ),
+              if (trailing != null) ...<Widget>[
+                const SizedBox(height: AppSpacing.md),
+                trailing!,
+              ],
+            ],
+          );
+        },
       ),
     );
   }
